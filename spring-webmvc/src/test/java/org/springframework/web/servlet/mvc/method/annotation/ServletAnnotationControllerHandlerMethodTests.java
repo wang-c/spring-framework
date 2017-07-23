@@ -84,6 +84,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.xml.MarshallingHttpMessageConverter;
+import org.springframework.lang.Nullable;
 import org.springframework.mock.web.test.MockHttpServletRequest;
 import org.springframework.mock.web.test.MockHttpServletResponse;
 import org.springframework.mock.web.test.MockMultipartFile;
@@ -141,7 +142,14 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.support.RequestContextUtils;
 import org.springframework.web.servlet.view.InternalResourceViewResolver;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * @author Rossen Stoyanchev
@@ -2482,7 +2490,7 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 
 				@Override
 				@SuppressWarnings({"unchecked", "deprecation", "rawtypes"})
-				public void render(Map model, HttpServletRequest request, HttpServletResponse response)
+				public void render(@Nullable Map model, HttpServletRequest request, HttpServletResponse response)
 						throws Exception {
 					TestBean tb = (TestBean) model.get("testBean");
 					if (tb == null) {
@@ -2527,7 +2535,7 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 					return null;
 				}
 				@Override
-				public void render(Map<String, ?> model, HttpServletRequest request, HttpServletResponse response) {
+				public void render(@Nullable Map<String, ?> model, HttpServletRequest request, HttpServletResponse response) {
 					request.setAttribute("viewName", viewName);
 					request.getSession().setAttribute("model", model);
 				}
@@ -2749,12 +2757,12 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 	public static class NotReadableMessageConverter implements HttpMessageConverter<Object> {
 
 		@Override
-		public boolean canRead(Class<?> clazz, MediaType mediaType) {
+		public boolean canRead(Class<?> clazz, @Nullable MediaType mediaType) {
 			return true;
 		}
 
 		@Override
-		public boolean canWrite(Class<?> clazz, MediaType mediaType) {
+		public boolean canWrite(Class<?> clazz, @Nullable MediaType mediaType) {
 			return true;
 		}
 
@@ -2770,7 +2778,7 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 		}
 
 		@Override
-		public void write(Object o, MediaType contentType, HttpOutputMessage outputMessage)
+		public void write(Object o, @Nullable MediaType contentType, HttpOutputMessage outputMessage)
 				throws IOException, HttpMessageNotWritableException {
 			throw new UnsupportedOperationException("Not implemented");
 		}
@@ -2785,12 +2793,12 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 		}
 
 		@Override
-		public boolean canRead(Class<?> clazz, MediaType mediaType) {
+		public boolean canRead(Class<?> clazz, @Nullable MediaType mediaType) {
 			return supportedMediaTypes.contains(mediaType);
 		}
 
 		@Override
-		public boolean canWrite(Class<?> clazz, MediaType mediaType) {
+		public boolean canWrite(Class<?> clazz, @Nullable MediaType mediaType) {
 			return supportedMediaTypes.contains(mediaType);
 		}
 
@@ -2806,7 +2814,7 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 		}
 
 		@Override
-		public void write(Object o, MediaType contentType, HttpOutputMessage outputMessage)
+		public void write(Object o, @Nullable MediaType contentType, HttpOutputMessage outputMessage)
 				throws IOException, HttpMessageNotWritableException {
 			outputMessage.getHeaders().setContentType(contentType);
 			outputMessage.getBody(); // force a header write
@@ -2917,7 +2925,7 @@ public class ServletAnnotationControllerHandlerMethodTests extends AbstractServl
 						return "text/html";
 					}
 					@Override
-					public void render(Map<String, ?> model, HttpServletRequest request, HttpServletResponse response)
+					public void render(@Nullable Map<String, ?> model, HttpServletRequest request, HttpServletResponse response)
 							throws Exception {
 						response.getWriter().write("myValue");
 					}

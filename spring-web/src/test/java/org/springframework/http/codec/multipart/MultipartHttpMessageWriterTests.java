@@ -16,6 +16,7 @@
 
 package org.springframework.http.codec.multipart;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -26,6 +27,7 @@ import reactor.core.publisher.Mono;
 
 import org.springframework.core.ResolvableType;
 import org.springframework.core.codec.CharSequenceEncoder;
+import org.springframework.core.codec.StringDecoder;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpEntity;
@@ -39,7 +41,10 @@ import org.springframework.mock.http.server.reactive.test.MockServerHttpResponse
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * @author Sebastien Deleuze
@@ -98,13 +103,15 @@ public class MultipartHttpMessageWriterTests {
 		Map<String, Object> hints = Collections.emptyMap();
 		this.writer.write(Mono.just(map), null, MediaType.MULTIPART_FORM_DATA, response, hints).block();
 
-		final MediaType contentType = response.getHeaders().getContentType();
+		MediaType contentType = response.getHeaders().getContentType();
 		assertNotNull("No boundary found", contentType.getParameter("boundary"));
 
 		// see if Synchronoss NIO Multipart can read what we wrote
-		SynchronossMultipartHttpMessageReader reader = new SynchronossMultipartHttpMessageReader();
+		SynchronossPartHttpMessageReader synchronossReader = new SynchronossPartHttpMessageReader();
+		MultipartHttpMessageReader reader = new MultipartHttpMessageReader(synchronossReader);
+
 		MockServerHttpRequest request = MockServerHttpRequest.post("/foo")
-				.header(HttpHeaders.CONTENT_TYPE, contentType.toString())
+				.contentType(MediaType.parseMediaType(contentType.toString()))
 				.body(response.getBody());
 
 		ResolvableType elementType = ResolvableType.forClassWithGenerics(MultiValueMap.class, String.class, Part.class);
@@ -112,37 +119,45 @@ public class MultipartHttpMessageWriterTests {
 		assertEquals(5, requestParts.size());
 
 		Part part = requestParts.getFirst("name 1");
-		assertEquals("name 1", part.getName());
-		assertEquals("value 1", part.getContentAsString().block());
-		assertFalse(part.getFilename().isPresent());
+		assertTrue(part instanceof FormFieldPart);
+		assertEquals("name 1", part.name());
+		assertEquals("value 1", ((FormFieldPart) part).value());
 
-		List<Part> part2 = requestParts.get("name 2");
-		assertEquals(2, part2.size());
-		part = part2.get(0);
-		assertEquals("name 2", part.getName());
-		assertEquals("value 2+1", part.getContentAsString().block());
-		part = part2.get(1);
-		assertEquals("name 2", part.getName());
-		assertEquals("value 2+2", part.getContentAsString().block());
+		List<Part> parts2 = requestParts.get("name 2");
+		assertEquals(2, parts2.size());
+		part = parts2.get(0);
+		assertTrue(part instanceof FormFieldPart);
+		assertEquals("name 2", part.name());
+		assertEquals("value 2+1", ((FormFieldPart) part).value());
+		part = parts2.get(1);
+		assertTrue(part instanceof FormFieldPart);
+		assertEquals("name 2", part.name());
+		assertEquals("value 2+2", ((FormFieldPart) part).value());
 
 		part = requestParts.getFirst("logo");
-		assertEquals("logo", part.getName());
-		assertTrue(part.getFilename().isPresent());
-		assertEquals("logo.jpg", part.getFilename().get());
-		assertEquals(MediaType.IMAGE_JPEG, part.getHeaders().getContentType());
-		assertEquals(logo.getFile().length(), part.getHeaders().getContentLength());
+		assertTrue(part instanceof FilePart);
+		assertEquals("logo", part.name());
+		assertEquals("logo.jpg", ((FilePart) part).filename());
+		assertEquals(MediaType.IMAGE_JPEG, part.headers().getContentType());
+		assertEquals(logo.getFile().length(), part.headers().getContentLength());
 
 		part = requestParts.getFirst("utf8");
-		assertEquals("utf8", part.getName());
-		assertTrue(part.getFilename().isPresent());
-		assertEquals("Hall\u00F6le.jpg", part.getFilename().get());
-		assertEquals(MediaType.IMAGE_JPEG, part.getHeaders().getContentType());
-		assertEquals(utf8.getFile().length(), part.getHeaders().getContentLength());
+		assertTrue(part instanceof FilePart);
+		assertEquals("utf8", part.name());
+		assertEquals("Hall\u00F6le.jpg", ((FilePart) part).filename());
+		assertEquals(MediaType.IMAGE_JPEG, part.headers().getContentType());
+		assertEquals(utf8.getFile().length(), part.headers().getContentLength());
 
 		part = requestParts.getFirst("json");
-		assertEquals("json", part.getName());
-		assertEquals(MediaType.APPLICATION_JSON_UTF8, part.getHeaders().getContentType());
-		assertEquals("{\"bar\":\"bar\"}", part.getContentAsString().block());
+		assertEquals("json", part.name());
+		assertEquals(MediaType.APPLICATION_JSON_UTF8, part.headers().getContentType());
+
+		String value = StringDecoder.textPlainOnly(false).decodeToMono(part.content(),
+				ResolvableType.forClass(String.class), MediaType.TEXT_PLAIN,
+				Collections.emptyMap()).block(Duration.ZERO);
+
+		assertEquals("{\"bar\":\"bar\"}", value);
+
 	}
 
 

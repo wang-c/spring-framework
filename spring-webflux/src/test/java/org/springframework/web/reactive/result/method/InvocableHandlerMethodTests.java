@@ -18,7 +18,6 @@ package org.springframework.web.reactive.result.method;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.Optional;
 
 import org.junit.Test;
 import reactor.core.publisher.Mono;
@@ -32,15 +31,11 @@ import org.springframework.web.reactive.BindingContext;
 import org.springframework.web.reactive.HandlerResult;
 import org.springframework.web.server.UnsupportedMediaTypeStatusException;
 
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.springframework.web.method.ResolvableMethod.on;
+import static org.mockito.Mockito.*;
+import static org.springframework.web.method.ResolvableMethod.*;
 
 /**
  * Unit tests for {@link InvocableHandlerMethod}.
@@ -63,7 +58,6 @@ public class InvocableHandlerMethodTests {
 
 	@Test
 	public void invokeMethodWithNoValue() throws Exception {
-
 		Mono<Object> resolvedValue = Mono.empty();
 		Method method = on(TestController.class).mockCall(o -> o.singleArg(null)).method();
 		Mono<HandlerResult> mono = invoke(new TestController(), method, resolverFor(resolvedValue));
@@ -73,7 +67,6 @@ public class InvocableHandlerMethodTests {
 
 	@Test
 	public void invokeMethodWithValue() throws Exception {
-
 		Mono<Object> resolvedValue = Mono.just("value1");
 		Method method = on(TestController.class).mockCall(o -> o.singleArg(null)).method();
 		Mono<HandlerResult> mono = invoke(new TestController(), method, resolverFor(resolvedValue));
@@ -83,7 +76,6 @@ public class InvocableHandlerMethodTests {
 
 	@Test
 	public void noMatchingResolver() throws Exception {
-
 		Method method = on(TestController.class).mockCall(o -> o.singleArg(null)).method();
 		Mono<HandlerResult> mono = invoke(new TestController(), method);
 
@@ -99,7 +91,6 @@ public class InvocableHandlerMethodTests {
 
 	@Test
 	public void resolverThrowsException() throws Exception {
-
 		Mono<Object> resolvedValue = Mono.error(new UnsupportedMediaTypeStatusException("boo"));
 		Method method = on(TestController.class).mockCall(o -> o.singleArg(null)).method();
 		Mono<HandlerResult> mono = invoke(new TestController(), method, resolverFor(resolvedValue));
@@ -109,13 +100,12 @@ public class InvocableHandlerMethodTests {
 			fail("Expected UnsupportedMediaTypeStatusException");
 		}
 		catch (UnsupportedMediaTypeStatusException ex) {
-			assertThat(ex.getMessage(), is("Request failure [status: 415, reason: \"boo\"]"));
+			assertThat(ex.getMessage(), is("Response status 415 with reason \"boo\""));
 		}
 	}
 
 	@Test
 	public void illegalArgumentExceptionIsWrappedWithInvocationDetails() throws Exception {
-
 		Mono<Object> resolvedValue = Mono.just(1);
 		Method method = on(TestController.class).mockCall(o -> o.singleArg(null)).method();
 		Mono<HandlerResult> mono = invoke(new TestController(), method, resolverFor(resolvedValue));
@@ -133,7 +123,6 @@ public class InvocableHandlerMethodTests {
 
 	@Test
 	public void invocationTargetExceptionIsUnwrapped() throws Exception {
-
 		Method method = on(TestController.class).mockCall(TestController::exceptionMethod).method();
 		Mono<HandlerResult> mono = invoke(new TestController(), method);
 
@@ -148,7 +137,6 @@ public class InvocableHandlerMethodTests {
 
 	@Test
 	public void invokeMethodWithResponseStatus() throws Exception {
-
 		Method method = on(TestController.class).annotPresent(ResponseStatus.class).resolveMethod();
 		Mono<HandlerResult> mono = invoke(new TestController(), method);
 
@@ -179,9 +167,7 @@ public class InvocableHandlerMethodTests {
 	private void assertHandlerResultValue(Mono<HandlerResult> mono, String expected) {
 		StepVerifier.create(mono)
 				.consumeNextWith(result -> {
-					Optional<?> optional = result.getReturnValue();
-					assertTrue(optional.isPresent());
-					assertEquals(expected, optional.get());
+					assertEquals(expected, result.getReturnValue());
 				})
 				.expectComplete()
 				.verify();

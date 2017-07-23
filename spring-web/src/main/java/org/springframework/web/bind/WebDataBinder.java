@@ -24,6 +24,7 @@ import java.util.Map;
 import org.springframework.beans.MutablePropertyValues;
 import org.springframework.beans.PropertyValue;
 import org.springframework.core.CollectionFactory;
+import org.springframework.lang.Nullable;
 import org.springframework.validation.DataBinder;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -74,8 +75,10 @@ public class WebDataBinder extends DataBinder {
 	 */
 	public static final String DEFAULT_FIELD_DEFAULT_PREFIX = "!";
 
+	@Nullable
 	private String fieldMarkerPrefix = DEFAULT_FIELD_MARKER_PREFIX;
 
+	@Nullable
 	private String fieldDefaultPrefix = DEFAULT_FIELD_DEFAULT_PREFIX;
 
 	private boolean bindEmptyMultipartFiles = true;
@@ -87,7 +90,7 @@ public class WebDataBinder extends DataBinder {
 	 * if the binder is just used to convert a plain parameter value)
 	 * @see #DEFAULT_OBJECT_NAME
 	 */
-	public WebDataBinder(Object target) {
+	public WebDataBinder(@Nullable Object target) {
 		super(target);
 	}
 
@@ -97,7 +100,7 @@ public class WebDataBinder extends DataBinder {
 	 * if the binder is just used to convert a plain parameter value)
 	 * @param objectName the name of the target object
 	 */
-	public WebDataBinder(Object target, String objectName) {
+	public WebDataBinder(@Nullable Object target, String objectName) {
 		super(target, objectName);
 	}
 
@@ -123,13 +126,14 @@ public class WebDataBinder extends DataBinder {
 	 * detect an empty field and automatically reset its value.
 	 * @see #DEFAULT_FIELD_MARKER_PREFIX
 	 */
-	public void setFieldMarkerPrefix(String fieldMarkerPrefix) {
+	public void setFieldMarkerPrefix(@Nullable String fieldMarkerPrefix) {
 		this.fieldMarkerPrefix = fieldMarkerPrefix;
 	}
 
 	/**
 	 * Return the prefix for parameters that mark potentially empty fields.
 	 */
+	@Nullable
 	public String getFieldMarkerPrefix() {
 		return this.fieldMarkerPrefix;
 	}
@@ -148,13 +152,14 @@ public class WebDataBinder extends DataBinder {
 	 * marker for the given field.
 	 * @see #DEFAULT_FIELD_DEFAULT_PREFIX
 	 */
-	public void setFieldDefaultPrefix(String fieldDefaultPrefix) {
+	public void setFieldDefaultPrefix(@Nullable String fieldDefaultPrefix) {
 		this.fieldDefaultPrefix = fieldDefaultPrefix;
 	}
 
 	/**
 	 * Return the prefix for parameters that mark default fields.
 	 */
+	@Nullable
 	public String getFieldDefaultPrefix() {
 		return this.fieldDefaultPrefix;
 	}
@@ -258,7 +263,8 @@ public class WebDataBinder extends DataBinder {
 	 * @param fieldType the type of the field
 	 * @return the empty value (for most fields: null)
 	 */
-	protected Object getEmptyValue(String field, Class<?> fieldType) {
+	@Nullable
+	protected Object getEmptyValue(String field, @Nullable Class<?> fieldType) {
 		if (fieldType != null) {
 			try {
 				if (boolean.class == fieldType || Boolean.class == fieldType) {

@@ -45,6 +45,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.codec.DecoderHttpMessageReader;
 import org.springframework.http.codec.HttpMessageReader;
 import org.springframework.http.codec.json.Jackson2JsonDecoder;
+import org.springframework.lang.Nullable;
 import org.springframework.validation.Errors;
 import org.springframework.validation.Validator;
 import org.springframework.validation.annotation.Validated;
@@ -82,14 +83,16 @@ public class MessageReaderArgumentResolverTests {
 	}
 
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void missingContentType() throws Exception {
 		ServerWebExchange exchange = post("/path").body("{\"bar\":\"BARBAR\",\"foo\":\"FOOFOO\"}").toExchange();
 		ResolvableType type = forClassWithGenerics(Mono.class, TestBean.class);
 		MethodParameter param = this.testMethod.arg(type);
 		Mono<Object> result = this.resolver.readBody(param, true, this.bindingContext, exchange);
+		Mono<TestBean> value = (Mono<TestBean>) result.block(Duration.ofSeconds(1));
 
-		StepVerifier.create(result).expectError(UnsupportedMediaTypeStatusException.class).verify();
+		StepVerifier.create(value).expectError(UnsupportedMediaTypeStatusException.class).verify();
 	}
 
 	// More extensive "empty body" tests in RequestBody- and HttpEntityArgumentResolverTests
@@ -401,7 +404,7 @@ public class MessageReaderArgumentResolverTests {
 		}
 
 		@Override
-		public void validate(Object target, Errors errors) {
+		public void validate(@Nullable Object target, Errors errors) {
 			TestBean testBean = (TestBean) target;
 			if (testBean.getFoo() == null) {
 				errors.rejectValue("foo", "nullValue");

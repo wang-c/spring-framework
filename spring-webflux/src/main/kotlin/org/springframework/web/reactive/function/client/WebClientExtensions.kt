@@ -17,10 +17,9 @@
 package org.springframework.web.reactive.function.client
 
 import org.reactivestreams.Publisher
-import org.springframework.http.ResponseEntity
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
-import kotlin.reflect.KClass
+
 
 /**
  * Extension for [WebClient.RequestBodySpec.body] providing a variant without explicit class
@@ -34,14 +33,6 @@ inline fun <reified T : Any, S : Publisher<T>> WebClient.RequestBodySpec.body(pu
         = body(publisher, T::class.java)
 
 /**
- * Extension for [WebClient.ResponseSpec.bodyToMono] providing a [KClass] based variant.
- *
- * @author Sebastien Deleuze
- * @since 5.0
- */
-fun <T : Any> WebClient.ResponseSpec.bodyToMono(type: KClass<T>): Mono<T> = bodyToMono(type.java)
-
-/**
  * Extension for [WebClient.ResponseSpec.bodyToMono] providing a `bodyToMono<Foo>()` variant.
  *
  * @author Sebastien Deleuze
@@ -51,49 +42,9 @@ inline fun <reified T : Any> WebClient.ResponseSpec.bodyToMono(): Mono<T> = body
 
 
 /**
- * Extension for [WebClient.ResponseSpec.bodyToFlux] providing a [KClass] based variant.
- *
- * @author Sebastien Deleuze
- * @since 5.0
- */
-fun <T : Any> WebClient.ResponseSpec.bodyToFlux(type: KClass<T>): Flux<T> = bodyToFlux(type.java)
-
-/**
  * Extension for [WebClient.ResponseSpec.bodyToFlux] providing a `bodyToFlux<Foo>()` variant.
  *
  * @author Sebastien Deleuze
  * @since 5.0
  */
 inline fun <reified T : Any> WebClient.ResponseSpec.bodyToFlux(): Flux<T> = bodyToFlux(T::class.java)
-
-/**
- * Extension for [WebClient.ResponseSpec.toEntity] providing a [KClass] based variant.
- *
- * @author Sebastien Deleuze
- * @since 5.0
- */
-fun <T : Any> WebClient.ResponseSpec.toEntity(type: KClass<T>): Mono<ResponseEntity<T>> = toEntity(type.java)
-
-/**
- * Extension for [WebClient.ResponseSpec.toEntity] providing a `bodyToEntity<Foo>()` variant.
- *
- * @author Sebastien Deleuze
- * @since 5.0
- */
-inline fun <reified T : Any> WebClient.ResponseSpec.toEntity(): Mono<ResponseEntity<T>> = toEntity(T::class.java)
-
-/**
- * Extension for [WebClient.ResponseSpec.toEntityList] providing a [KClass] based variant.
- *
- * @author Sebastien Deleuze
- * @since 5.0
- */
-fun <T : Any> WebClient.ResponseSpec.toEntityList(type: KClass<T>): Mono<ResponseEntity<List<T>>> = toEntityList(type.java)
-
-/**
- * Extension for [WebClient.ResponseSpec.toEntityList] providing a `bodyToEntityList<Foo>()` variant.
- *
- * @author Sebastien Deleuze
- * @since 5.0
- */
-inline fun <reified T : Any> WebClient.ResponseSpec.toEntityList(): Mono<ResponseEntity<List<T>>> = toEntityList(T::class.java)

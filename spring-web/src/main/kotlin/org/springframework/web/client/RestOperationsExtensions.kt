@@ -1,3 +1,19 @@
+/*
+ * Copyright 2002-2017 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.springframework.web.client
 
 import org.springframework.http.HttpEntity
@@ -8,40 +24,40 @@ import java.net.URI
 
 
 /**
- * Extension for [RestOperations.getForObject] avoiding specifying thanks to Kotlin reified type parameters.
+ * Extension for [RestOperations.getForObject] avoiding specifying the type parameter thanks to Kotlin reified type parameters.
  *
  * @author Jon Schneider
  * @author Sebastien Deleuze
  * @since 5.0
  */
 @Throws(RestClientException::class)
-inline fun <reified T: Any> RestOperations.getForObject(url: String, vararg uriVariables: Any): T =
+inline fun <reified T: Any> RestOperations.getForObject(url: String, vararg uriVariables: Any): T? =
 		getForObject(url, T::class.java, *uriVariables)
 
 /**
- * Extension for [RestOperations.getForObject] avoiding specifying thanks to Kotlin reified type parameters.
+ * Extension for [RestOperations.getForObject] avoiding specifying the type parameter thanks to Kotlin reified type parameters.
  *
  * @author Jon Schneider
  * @author Sebastien Deleuze
  * @since 5.0
  */
 @Throws(RestClientException::class)
-inline fun <reified T: Any> RestOperations.getForObject(url: String, uriVariables: Map<String, Any?>): T =
+inline fun <reified T: Any> RestOperations.getForObject(url: String, uriVariables: Map<String, Any?>): T? =
 		getForObject(url, T::class.java, uriVariables)
 
 /**
- * Extension for [RestOperations.getForObject] avoiding specifying thanks to Kotlin reified type parameters.
+ * Extension for [RestOperations.getForObject] avoiding specifying the type parameter thanks to Kotlin reified type parameters.
  *
  * @author Jon Schneider
  * @author Sebastien Deleuze
  * @since 5.0
  */
 @Throws(RestClientException::class)
-inline fun <reified T: Any> RestOperations.getForObject(url: URI): T =
+inline fun <reified T: Any> RestOperations.getForObject(url: URI): T? =
 		getForObject(url, T::class.java)
 
 /**
- * Extension for [RestOperations.getForEntity] avoiding specifying thanks to Kotlin reified type parameters.
+ * Extension for [RestOperations.getForEntity] avoiding requiring the type parameter thanks to Kotlin reified type parameters.
  *
  * @author Jon Schneider
  * @author Sebastien Deleuze
@@ -52,38 +68,40 @@ inline fun <reified T: Any> RestOperations.getForEntity(url: String, vararg uriV
 		getForEntity(url, T::class.java, *uriVariables)
 
 /**
- * Extension for [RestOperations.postForObject] avoiding specifying thanks to Kotlin reified type parameters.
+ * Extension for [RestOperations.postForObject] avoiding specifying the type parameter thanks to Kotlin reified type parameters.
  *
  * @author Jon Schneider
  * @author Sebastien Deleuze
  * @since 5.0
  */
 @Throws(RestClientException::class)
-inline fun <reified T: Any> RestOperations.postForObject(url: String, request: Any, vararg uriVariables: Any): T =
+inline fun <reified T: Any> RestOperations.postForObject(url: String, request: Any, vararg uriVariables: Any): T? =
 		postForObject(url, request, T::class.java, *uriVariables)
 
 /**
- * Extension for [RestOperations.postForObject] avoiding specifying thanks to Kotlin reified type parameters.
+ * Extension for [RestOperations.postForObject] avoiding specifying the type parameter thanks to Kotlin reified type parameters.
  *
  * @author Jon Schneider
  * @author Sebastien Deleuze
  * @since 5.0
  */
 @Throws(RestClientException::class)
-inline fun <reified T: Any> RestOperations.postForObject(url: String, request: Any, uriVariables: Map<String, *>): T =
+inline fun <reified T: Any> RestOperations.postForObject(url: String, request: Any, uriVariables: Map<String, *>): T? =
 		postForObject(url, request, T::class.java, uriVariables)
 
 /**
+ * Extension for [RestOperations.postForObject] avoiding specifying the type parameter thanks to Kotlin reified type parameters.
+ *
  * @author Jon Schneider
  * @author Sebastien Deleuze
  * @since 5.0
  */
 @Throws(RestClientException::class)
-inline fun <reified T: Any> RestOperations.postForObject(url: URI, request: Any): T =
+inline fun <reified T: Any> RestOperations.postForObject(url: URI, request: Any): T? =
 		postForObject(url, request, T::class.java)
 
 /**
- * Extension for [RestOperations.postForEntity] avoiding specifying thanks to Kotlin reified type parameters.
+ * Extension for [RestOperations.postForEntity] avoiding specifying the type parameter thanks to Kotlin reified type parameters.
  *
  * @author Jon Schneider
  * @author Sebastien Deleuze
@@ -94,7 +112,7 @@ inline fun <reified T: Any> RestOperations.postForEntity(url: String, request: A
 		postForEntity(url, request, T::class.java, *uriVariables)
 
 /**
- * Extension for [RestOperations.postForEntity] avoiding specifying thanks to Kotlin reified type parameters.
+ * Extension for [RestOperations.postForEntity] avoiding specifying the type parameter thanks to Kotlin reified type parameters.
  *
  * @author Jon Schneider
  * @author Sebastien Deleuze
@@ -105,7 +123,7 @@ inline fun <reified T: Any> RestOperations.postForEntity(url: String, request: A
 		postForEntity(url, request, T::class.java, uriVariables)
 
 /**
- * Extension for [RestOperations.postForEntity] avoiding specifying thanks to Kotlin reified type parameters.
+ * Extension for [RestOperations.postForEntity] avoiding specifying the type parameter thanks to Kotlin reified type parameters.
  *
  * @author Jon Schneider
  * @author Sebastien Deleuze
@@ -116,7 +134,7 @@ inline fun <reified T: Any> RestOperations.postForEntity(url: URI, request: Any)
 		postForEntity(url, request, T::class.java)
 
 /**
- * Extension for [RestOperations.exchange] avoiding specifying thanks to Kotlin reified type parameters.
+ * Extension for [RestOperations.exchange] avoiding specifying the type parameter thanks to Kotlin reified type parameters.
  *
  * @author Jon Schneider
  * @author Sebastien Deleuze
@@ -127,7 +145,7 @@ inline fun <reified T: Any> RestOperations.exchange(url: String, method: HttpMet
 		exchange(url, method, requestEntity, T::class.java, *uriVariables)
 
 /**
- * Extension for [RestOperations.exchange] avoiding specifying thanks to Kotlin reified type parameters.
+ * Extension for [RestOperations.exchange] avoiding specifying the type parameter thanks to Kotlin reified type parameters.
  *
  * @author Jon Schneider
  * @author Sebastien Deleuze
@@ -138,7 +156,7 @@ inline fun <reified T: Any> RestOperations.exchange(url: String, method: HttpMet
 		exchange(url, method, requestEntity, T::class.java, uriVariables)
 
 /**
- * Extension for [RestOperations.exchange] avoiding specifying thanks to Kotlin reified type parameters.
+ * Extension for [RestOperations.exchange] avoiding specifying the type parameter thanks to Kotlin reified type parameters.
  *
  * @author Jon Schneider
  * @author Sebastien Deleuze
@@ -149,7 +167,7 @@ inline fun <reified T: Any> RestOperations.exchange(url: URI, method: HttpMethod
 		exchange(url, method, requestEntity, T::class.java)
 
 /**
- * Extension for [RestOperations.exchange] avoiding specifying thanks to Kotlin reified type parameters.
+ * Extension for [RestOperations.exchange] avoiding specifying the type parameter thanks to Kotlin reified type parameters.
  *
  * @author Jon Schneider
  * @author Sebastien Deleuze

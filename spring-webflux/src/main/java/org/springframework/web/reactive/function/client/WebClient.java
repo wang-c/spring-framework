@@ -21,16 +21,19 @@ import java.nio.charset.Charset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.reactive.ClientHttpConnector;
 import org.springframework.http.client.reactive.ClientHttpRequest;
 import org.springframework.util.MultiValueMap;
@@ -62,58 +65,55 @@ public interface WebClient {
 	 * Prepare an HTTP GET request.
 	 * @return a spec for specifying the target URL
 	 */
-	UriSpec<RequestHeadersSpec<?>> get();
+	RequestHeadersUriSpec<?> get();
 
 	/**
 	 * Prepare an HTTP HEAD request.
 	 * @return a spec for specifying the target URL
 	 */
-	UriSpec<RequestHeadersSpec<?>> head();
+	RequestHeadersUriSpec<?> head();
 
 	/**
 	 * Prepare an HTTP POST request.
 	 * @return a spec for specifying the target URL
 	 */
-	UriSpec<RequestBodySpec> post();
+	RequestBodyUriSpec post();
 
 	/**
 	 * Prepare an HTTP PUT request.
 	 * @return a spec for specifying the target URL
 	 */
-	UriSpec<RequestBodySpec> put();
+	RequestBodyUriSpec put();
 
 	/**
 	 * Prepare an HTTP PATCH request.
 	 * @return a spec for specifying the target URL
 	 */
-	UriSpec<RequestBodySpec> patch();
+	RequestBodyUriSpec patch();
 
 	/**
 	 * Prepare an HTTP DELETE request.
 	 * @return a spec for specifying the target URL
 	 */
-	UriSpec<RequestHeadersSpec<?>> delete();
+	RequestHeadersUriSpec<?> delete();
 
 	/**
 	 * Prepare an HTTP OPTIONS request.
 	 * @return a spec for specifying the target URL
 	 */
-	UriSpec<RequestHeadersSpec<?>> options();
+	RequestHeadersUriSpec<?> options();
 
 	/**
 	 * Prepare a request for the specified {@code HttpMethod}.
 	 * @return a spec for specifying the target URL
 	 */
-	UriSpec<RequestBodySpec> method(HttpMethod method);
+	RequestBodyUriSpec method(HttpMethod method);
 
 
 	/**
-	 * Filter the client with the given {@code ExchangeFilterFunction}.
-	 * @param filterFunction the filter to apply to this client
-	 * @return the filtered client
-	 * @see ExchangeFilterFunction#apply(ExchangeFunction)
+	 * Return a builder to mutate properties of this web client.
 	 */
-	WebClient filter(ExchangeFilterFunction filterFunction);
+	Builder mutate();
 
 
 	// Static, factory methods
@@ -217,11 +217,22 @@ public interface WebClient {
 		Builder uriBuilderFactory(UriBuilderFactory uriBuilderFactory);
 
 		/**
-		 * Add the given header to all requests that haven't added it.
+		 * Add the given header to all requests that have not added it.
 		 * @param headerName the header name
 		 * @param headerValues the header values
 		 */
 		Builder defaultHeader(String headerName, String... headerValues);
+
+		/**
+		 * Manipulate the default headers with the given consumer. The
+		 * headers provided to the consumer are "live", so that the consumer can be used to
+		 * {@linkplain HttpHeaders#set(String, String) overwrite} existing header values,
+		 * {@linkplain HttpHeaders#remove(Object) remove} values, or use any of the other
+		 * {@link HttpHeaders} methods.
+		 * @param headersConsumer a function that consumes the {@code HttpHeaders}
+		 * @return this builder
+		 */
+		Builder defaultHeaders(Consumer<HttpHeaders> headersConsumer);
 
 		/**
 		 * Add the given header to all requests that haven't added it.
@@ -229,6 +240,17 @@ public interface WebClient {
 		 * @param cookieValues the cookie values
 		 */
 		Builder defaultCookie(String cookieName, String... cookieValues);
+
+		/**
+		 * Manipulate the default cookies with the given consumer. The
+		 * map provided to the consumer is "live", so that the consumer can be used to
+		 * {@linkplain MultiValueMap#set(Object, Object) overwrite} existing header values,
+		 * {@linkplain MultiValueMap#remove(Object) remove} values, or use any of the other
+		 * {@link MultiValueMap} methods.
+		 * @param cookiesConsumer a function that consumes the cookies map
+		 * @return this builder
+		 */
+		Builder defaultCookies(Consumer<MultiValueMap<String, String>> cookiesConsumer);
 
 		/**
 		 * Configure the {@link ClientHttpConnector} to use.
@@ -242,6 +264,21 @@ public interface WebClient {
 		 * @see #exchangeFunction(ExchangeFunction)
 		 */
 		Builder clientConnector(ClientHttpConnector connector);
+
+		/**
+		 * Add the given filter to the filter chain.
+		 * @param filter the filter to be added to the chain
+		 */
+		Builder filter(ExchangeFilterFunction filter);
+
+		/**
+		 * Manipulate the filters with the given consumer. The
+		 * list provided to the consumer is "live", so that the consumer can be used to remove
+		 * filters, change ordering, etc.
+		 * @param filtersConsumer a function that consumes the filter list
+		 * @return this builder
+		 */
+		Builder filters(Consumer<List<ExchangeFilterFunction>> filtersConsumer);
 
 		/**
 		 * Configure the {@link ExchangeStrategies} to use.
@@ -264,6 +301,17 @@ public interface WebClient {
 		 * @see #exchangeStrategies(ExchangeStrategies)
 		 */
 		Builder exchangeFunction(ExchangeFunction exchangeFunction);
+
+		/**
+		 * Clone this {@code WebClient.Builder}
+		 */
+		Builder clone();
+
+		/**
+		 * Shortcut for pre-packaged customizations to WebTest builder.
+		 * @param builderConsumer the consumer to apply
+		 */
+		Builder apply(Consumer<Builder> builderConsumer);
 
 		/**
 		 * Builder the {@link WebClient} instance.
@@ -304,6 +352,7 @@ public interface WebClient {
 		S uri(Function<UriBuilder, URI> uriFunction);
 	}
 
+
 	/**
 	 * Contract for specifying request headers leading up to the exchange.
 	 */
@@ -334,11 +383,15 @@ public interface WebClient {
 		S cookie(String name, String value);
 
 		/**
-		 * Copy the given cookies into the entity's cookies map.
-		 * @param cookies the existing cookies to copy from
+		 * Manipulate the request's cookies with the given consumer. The
+		 * map provided to the consumer is "live", so that the consumer can be used to
+		 * {@linkplain MultiValueMap#set(Object, Object) overwrite} existing header values,
+		 * {@linkplain MultiValueMap#remove(Object) remove} values, or use any of the other
+		 * {@link MultiValueMap} methods.
+		 * @param cookiesConsumer a function that consumes the cookies map
 		 * @return this builder
 		 */
-		S cookies(MultiValueMap<String, String> cookies);
+		S cookies(Consumer<MultiValueMap<String, String>> cookiesConsumer);
 
 		/**
 		 * Set the value of the {@code If-Modified-Since} header.
@@ -365,31 +418,49 @@ public interface WebClient {
 		S header(String headerName, String... headerValues);
 
 		/**
-		 * Copy the given headers into the entity's headers map.
-		 * @param headers the existing headers to copy from
+		 * Manipulate the request's headers with the given consumer. The
+		 * headers provided to the consumer are "live", so that the consumer can be used to
+		 * {@linkplain HttpHeaders#set(String, String) overwrite} existing header values,
+		 * {@linkplain HttpHeaders#remove(Object) remove} values, or use any of the other
+		 * {@link HttpHeaders} methods.
+		 * @param headersConsumer a function that consumes the {@code HttpHeaders}
 		 * @return this builder
 		 */
-		S headers(HttpHeaders headers);
+		S headers(Consumer<HttpHeaders> headersConsumer);
+
+		/**
+		 * Set the attribute with the given name to the given value.
+		 * @param name the name of the attribute to add
+		 * @param value the value of the attribute to add
+		 * @return this builder
+		 */
+		S attribute(String name, Object value);
+
+		/**
+		 * Manipulate the request attributes with the given consumer. The attributes provided to
+		 * the consumer are "live", so that the consumer can be used to inspect attributes,
+		 * remove attributes, or use any of the other map-provided methods.
+		 * @param attributesConsumer a function that consumes the attributes
+		 * @return this builder
+		 */
+		S attributes(Consumer<Map<String, Object>> attributesConsumer);
 
 		/**
 		 * Exchange the request for a {@code ClientResponse} with full access
 		 * to the response status and headers before extracting the body.
-		 *
 		 * <p>Use {@link Mono#flatMap(Function)} or
 		 * {@link Mono#flatMapMany(Function)} to compose further on the response:
-		 *
 		 * <pre>
-		 *	Mono&lt;Pojo&gt; mono = client.get().uri("/")
-		 *		.accept(MediaType.APPLICATION_JSON)
-		 *		.exchange()
-		 *		.flatMap(response -> response.bodyToMono(Pojo.class));
+		 * Mono&lt;Pojo&gt; mono = client.get().uri("/")
+		 *     .accept(MediaType.APPLICATION_JSON)
+		 *     .exchange()
+		 *     .flatMap(response -> response.bodyToMono(Pojo.class));
 		 *
-		 *	Flux&lt;Pojo&gt; flux = client.get().uri("/")
-		 *		.accept(MediaType.APPLICATION_STREAM_JSON)
-		 *		.exchange()
-		 *		.flatMapMany(response -> response.bodyToFlux(Pojo.class));
+		 * Flux&lt;Pojo&gt; flux = client.get().uri("/")
+		 *     .accept(MediaType.APPLICATION_STREAM_JSON)
+		 *     .exchange()
+		 *     .flatMapMany(response -> response.bodyToFlux(Pojo.class));
 		 * </pre>
-		 *
 		 * @return a {@code Mono} with the response
 		 * @see #retrieve()
 		 */
@@ -400,28 +471,25 @@ public interface WebClient {
 		 * retrieving the full response (i.e. status, headers, and body) where
 		 * instead of returning {@code Mono<ClientResponse>} it exposes shortcut
 		 * methods to extract the response body.
-		 *
 		 * <p>Use of this method is simpler when you don't need to deal directly
 		 * with {@link ClientResponse}, e.g. to use a custom {@code BodyExtractor}
 		 * or to check the status and headers before extracting the response.
-		 *
 		 * <pre>
-		 *	Mono&lt;Pojo&gt; bodyMono = client.get().uri("/")
-		 *		.accept(MediaType.APPLICATION_JSON)
-		 *		.retrieve()
-		 *		.bodyToMono(Pojo.class);
+		 * Mono&lt;Pojo&gt; bodyMono = client.get().uri("/")
+		 *     .accept(MediaType.APPLICATION_JSON)
+		 *     .retrieve()
+		 *     .bodyToMono(Pojo.class);
 		 *
-		 *	Mono&lt;ResponseEntity&lt;Pojo&gt;&gt; entityMono = client.get().uri("/")
-		 *		.accept(MediaType.APPLICATION_JSON)
-		 *		.retrieve()
-		 *		.bodyToEntity(Pojo.class);
+		 * Mono&lt;ResponseEntity&lt;Pojo&gt;&gt; entityMono = client.get().uri("/")
+		 *     .accept(MediaType.APPLICATION_JSON)
+		 *     .retrieve()
+		 *     .bodyToEntity(Pojo.class);
 		 * </pre>
-		 *
 		 * @return spec with options for extracting the response body
 		 */
 		ResponseSpec retrieve();
-
 	}
+
 
 	interface RequestBodySpec extends RequestHeadersSpec<RequestBodySpec> {
 
@@ -472,15 +540,29 @@ public interface WebClient {
 		 * @return this builder
 		 */
 		RequestHeadersSpec<?> syncBody(Object body);
-
 	}
+
 
 	interface ResponseSpec {
 
 		/**
-		 * Extract the body to a {@code Mono}. If the response has status code 4xx or 5xx, the
-		 * {@code Mono} will contain a {@link WebClientException}.
-		 *
+		 * Register a custom error function that gets invoked when the given {@link HttpStatus}
+		 * predicate applies. The exception returned from the function will be returned from
+		 * {@link #bodyToMono(Class)} and {@link #bodyToFlux(Class)}.
+		 * <p>By default, an error handler is register that throws a {@link WebClientException}
+		 * when the response status code is 4xx or 5xx.
+		 * @param statusPredicate a predicate that indicates whether {@code exceptionFunction}
+		 * applies
+		 * @param exceptionFunction the function that returns the exception
+		 * @return this builder
+		 */
+		ResponseSpec onStatus(Predicate<HttpStatus> statusPredicate,
+				Function<ClientResponse, ? extends Throwable> exceptionFunction);
+
+		/**
+		 * Extract the body to a {@code Mono}. By default, if the response has status code 4xx or
+		 * 5xx, the {@code Mono} will contain a {@link WebClientException}. This can be overridden
+		 * with {@link #onStatus(Predicate, Function)}.
 		 * @param bodyType the expected response body type
 		 * @param <T> response body type
 		 * @return a mono containing the body, or a {@link WebClientException} if the status code is
@@ -489,9 +571,20 @@ public interface WebClient {
 		<T> Mono<T> bodyToMono(Class<T> bodyType);
 
 		/**
-		 * Extract the body to a {@code Flux}. If the response has status code 4xx or 5xx, the
-		 * {@code Flux} will contain a {@link WebClientException}.
-		 *
+		 * Extract the body to a {@code Mono}. By default, if the response has status code 4xx or
+		 * 5xx, the {@code Mono} will contain a {@link WebClientException}. This can be overridden
+		 * with {@link #onStatus(Predicate, Function)}.
+		 * @param typeReference a type reference describing the expected response body type
+		 * @param <T> response body type
+		 * @return a mono containing the body, or a {@link WebClientException} if the status code is
+		 * 4xx or 5xx
+		 */
+		<T> Mono<T> bodyToMono(ParameterizedTypeReference<T> typeReference);
+
+		/**
+		 * Extract the body to a {@code Flux}. By default, if the response has status code 4xx or
+		 * 5xx, the {@code Flux} will contain a {@link WebClientException}. This can be overridden
+         * with {@link #onStatus(Predicate, Function)}.
 		 * @param elementType the type of element in the response
 		 * @param <T> the type of elements in the response
 		 * @return a flux containing the body, or a {@link WebClientException} if the status code is
@@ -500,27 +593,26 @@ public interface WebClient {
 		<T> Flux<T> bodyToFlux(Class<T> elementType);
 
 		/**
-		 * Returns the response as a delayed {@code ResponseEntity}. Unlike
-		 * {@link #bodyToMono(Class)} and {@link #bodyToFlux(Class)}, this method does not check
-		 * for a 4xx or 5xx status code before extracting the body.
-		 *
-		 * @param bodyType the expected response body type
-		 * @param <T> response body type
-		 * @return {@code Mono} with the {@code ResponseEntity}
+		 * Extract the body to a {@code Flux}. By default, if the response has status code 4xx or
+		 * 5xx, the {@code Flux} will contain a {@link WebClientException}. This can be overridden
+         * with {@link #onStatus(Predicate, Function)}.
+		 * @param typeReference a type reference describing the expected response body type
+		 * @param <T> the type of elements in the response
+		 * @return a flux containing the body, or a {@link WebClientException} if the status code is
+		 * 4xx or 5xx
 		 */
-		<T> Mono<ResponseEntity<T>> toEntity(Class<T> bodyType);
-
-		/**
-		 * Returns the response as a delayed list of {@code ResponseEntity}s. Unlike
-		 * {@link #bodyToMono(Class)} and {@link #bodyToFlux(Class)}, this method does not check
-		 * for a 4xx or 5xx status code before extracting the body.
-		 *
-		 * @param elementType the expected response body list element type
-		 * @param <T> the type of elements in the list
-		 * @return {@code Mono} with the list of {@code ResponseEntity}s
-		 */
-		<T> Mono<ResponseEntity<List<T>>> toEntityList(Class<T> elementType);
+		<T> Flux<T> bodyToFlux(ParameterizedTypeReference<T> typeReference);
 
 	}
+
+
+	interface RequestHeadersUriSpec<S extends RequestHeadersSpec<S>>
+			extends UriSpec<S>, RequestHeadersSpec<S> {
+	}
+
+
+	interface RequestBodyUriSpec extends RequestBodySpec, RequestHeadersUriSpec<RequestBodySpec> {
+	}
+
 
 }

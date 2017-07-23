@@ -42,6 +42,7 @@ import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.converter.GenericHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.util.StreamUtils;
 import org.springframework.web.util.DefaultUriBuilderFactory;
 
 import static org.junit.Assert.*;
@@ -163,12 +164,14 @@ public class RestTemplateTests {
 
 	@Test
 	public void errorHandling() throws Exception {
-		given(requestFactory.createRequest(new URI("http://example.com"), HttpMethod.GET)).willReturn(request);
+		URI uri = new URI("http://example.com");
+		given(requestFactory.createRequest(uri, HttpMethod.GET)).willReturn(request);
 		given(request.execute()).willReturn(response);
 		given(errorHandler.hasError(response)).willReturn(true);
 		given(response.getStatusCode()).willReturn(HttpStatus.INTERNAL_SERVER_ERROR);
 		given(response.getStatusText()).willReturn("Internal Server Error");
-		willThrow(new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR)).given(errorHandler).handleError(response);
+		willThrow(new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR))
+				.given(errorHandler).handleError(uri, HttpMethod.GET, response);
 
 		try {
 			template.execute("http://example.com", HttpMethod.GET, null, null);
@@ -292,7 +295,7 @@ public class RestTemplateTests {
 
 		given(response.getStatusCode()).willReturn(HttpStatus.OK);
 		given(response.getHeaders()).willReturn(new HttpHeaders());
-		given(response.getBody()).willReturn(null);
+		given(response.getBody()).willReturn(StreamUtils.emptyInput());
 
 		Map<String, String> uriVariables = new HashMap<>(2);
 		uriVariables.put("hotel", "1");
@@ -524,8 +527,9 @@ public class RestTemplateTests {
 		HttpHeaders responseHeaders = new HttpHeaders();
 		responseHeaders.setContentType(textPlain);
 		responseHeaders.setContentLength(10);
-		given(response.getStatusCode()).willReturn(HttpStatus.OK);
 		given(response.getHeaders()).willReturn(responseHeaders);
+		given(response.getStatusCode()).willReturn(HttpStatus.OK);
+		given(response.getBody()).willReturn(StreamUtils.emptyInput());
 		given(converter.canRead(Integer.class, textPlain)).willReturn(true);
 		given(converter.read(Integer.class, response)).willReturn(null);
 		HttpStatus status = HttpStatus.OK;
@@ -552,8 +556,9 @@ public class RestTemplateTests {
 		HttpHeaders responseHeaders = new HttpHeaders();
 		responseHeaders.setContentType(textPlain);
 		responseHeaders.setContentLength(10);
-		given(response.getStatusCode()).willReturn(HttpStatus.OK);
 		given(response.getHeaders()).willReturn(responseHeaders);
+		given(response.getStatusCode()).willReturn(HttpStatus.OK);
+		given(response.getBody()).willReturn(StreamUtils.emptyInput());
 		given(converter.canRead(Integer.class, textPlain)).willReturn(true);
 		given(converter.read(Integer.class, response)).willReturn(null);
 		given(response.getStatusCode()).willReturn(HttpStatus.OK);
@@ -650,8 +655,9 @@ public class RestTemplateTests {
 		HttpHeaders responseHeaders = new HttpHeaders();
 		responseHeaders.setContentType(textPlain);
 		responseHeaders.setContentLength(10);
-		given(response.getStatusCode()).willReturn(HttpStatus.OK);
 		given(response.getHeaders()).willReturn(responseHeaders);
+		given(response.getStatusCode()).willReturn(HttpStatus.OK);
+		given(response.getBody()).willReturn(StreamUtils.emptyInput());
 		given(converter.canRead(Integer.class, textPlain)).willReturn(true);
 		given(converter.read(Integer.class, response)).willReturn(null);
 		HttpStatus status = HttpStatus.OK;

@@ -23,12 +23,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
@@ -75,10 +75,9 @@ class DefaultServerResponseBuilder implements ServerResponse.BodyBuilder {
 	}
 
 	@Override
-	public ServerResponse.BodyBuilder headers(HttpHeaders headers) {
-		if (headers != null) {
-			this.headers.putAll(headers);
-		}
+	public ServerResponse.BodyBuilder headers(Consumer<HttpHeaders> headersConsumer) {
+		Assert.notNull(headersConsumer, "'headersConsumer' must not be null");
+		headersConsumer.accept(this.headers);
 		return this;
 	}
 
@@ -107,16 +106,14 @@ class DefaultServerResponseBuilder implements ServerResponse.BodyBuilder {
 	}
 
 	@Override
-	public ServerResponse.BodyBuilder eTag(String eTag) {
-		if (eTag != null) {
-			if (!eTag.startsWith("\"") && !eTag.startsWith("W/\"")) {
-				eTag = "\"" + eTag;
-			}
-			if (!eTag.endsWith("\"")) {
-				eTag = eTag + "\"";
-			}
+	public ServerResponse.BodyBuilder eTag(String etag) {
+		if (!etag.startsWith("\"") && !etag.startsWith("W/\"")) {
+			etag = "\"" + etag;
 		}
-		this.headers.setETag(eTag);
+		if (!etag.endsWith("\"")) {
+			etag = etag + "\"";
+		}
+		this.headers.setETag(etag);
 		return this;
 	}
 
@@ -128,9 +125,7 @@ class DefaultServerResponseBuilder implements ServerResponse.BodyBuilder {
 
 	@Override
 	public ServerResponse.BodyBuilder lastModified(ZonedDateTime lastModified) {
-		ZonedDateTime gmt = lastModified.withZoneSameInstant(ZoneId.of("GMT"));
-		String headerValue = DateTimeFormatter.RFC_1123_DATE_TIME.format(gmt);
-		this.headers.set(HttpHeaders.LAST_MODIFIED, headerValue);
+		this.headers.setZonedDateTime(HttpHeaders.LAST_MODIFIED, lastModified);
 		return this;
 	}
 
@@ -169,7 +164,7 @@ class DefaultServerResponseBuilder implements ServerResponse.BodyBuilder {
 
 	@Override
 	public Mono<ServerResponse> build(
-			BiFunction<ServerWebExchange, HandlerStrategies, Mono<Void>> writeFunction) {
+			BiFunction<ServerWebExchange, ServerResponse.Context, Mono<Void>> writeFunction) {
 
 		Assert.notNull(writeFunction, "'writeFunction' must not be null");
 		return Mono.just(new WriterFunctionServerResponse(this.statusCode, this.headers, writeFunction));
@@ -277,19 +272,19 @@ class DefaultServerResponseBuilder implements ServerResponse.BodyBuilder {
 
 	private static final class WriterFunctionServerResponse extends AbstractServerResponse {
 
-		private final BiFunction<ServerWebExchange, HandlerStrategies, Mono<Void>> writeFunction;
+		private final BiFunction<ServerWebExchange, Context, Mono<Void>> writeFunction;
 
 		public WriterFunctionServerResponse(HttpStatus statusCode, HttpHeaders headers,
-				BiFunction<ServerWebExchange, HandlerStrategies, Mono<Void>> writeFunction) {
+				BiFunction<ServerWebExchange, Context, Mono<Void>> writeFunction) {
 
 			super(statusCode, headers);
 			this.writeFunction = writeFunction;
 		}
 
 		@Override
-		public Mono<Void> writeTo(ServerWebExchange exchange, HandlerStrategies strategies) {
+		public Mono<Void> writeTo(ServerWebExchange exchange, Context context) {
 			writeStatusAndHeaders(exchange.getResponse());
-			return this.writeFunction.apply(exchange, strategies);
+			return this.writeFunction.apply(exchange, context);
 		}
 	}
 
@@ -309,13 +304,13 @@ class DefaultServerResponseBuilder implements ServerResponse.BodyBuilder {
 		}
 
 		@Override
-		public Mono<Void> writeTo(ServerWebExchange exchange, HandlerStrategies strategies) {
+		public Mono<Void> writeTo(ServerWebExchange exchange, Context context) {
 			ServerHttpResponse response = exchange.getResponse();
 			writeStatusAndHeaders(response);
 			return this.inserter.insert(response, new BodyInserter.Context() {
 				@Override
-				public Supplier<Stream<HttpMessageWriter<?>>> messageWriters() {
-					return strategies.messageWriters();
+				public List<HttpMessageWriter<?>> messageWriters() {
+					return context.messageWriters();
 				}
 
 				@Override

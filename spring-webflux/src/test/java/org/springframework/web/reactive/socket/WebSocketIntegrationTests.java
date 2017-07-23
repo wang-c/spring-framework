@@ -17,10 +17,14 @@
 package org.springframework.web.reactive.socket;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 import org.reactivestreams.Publisher;
@@ -35,7 +39,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.web.reactive.HandlerMapping;
 import org.springframework.web.reactive.handler.SimpleUrlHandlerMapping;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 /**
  * Integration tests with server-side {@link WebSocketHandler}s.
@@ -43,6 +48,9 @@ import static org.junit.Assert.*;
  * @author Rossen Stoyanchev
  */
 public class WebSocketIntegrationTests extends AbstractWebSocketIntegrationTests {
+
+	private static final Log logger = LogFactory.getLog(WebSocketIntegrationTests.class);
+
 
 	@Override
 	protected Class<?> getWebConfigClass() {
@@ -57,31 +65,35 @@ public class WebSocketIntegrationTests extends AbstractWebSocketIntegrationTests
 		ReplayProcessor<Object> output = ReplayProcessor.create(count);
 
 		client.execute(getUrl("/echo"),
-				session -> session
-						.send(input.map(session::textMessage))
-						.thenMany(session.receive().take(count).map(WebSocketMessage::getPayloadAsText))
-						.subscribeWith(output)
-						.then())
+				session -> {
+					logger.debug("Starting to send messages");
+					return session
+							.send(input.doOnNext(s -> logger.debug("outbound " + s)).map(session::textMessage))
+							.thenMany(session.receive().take(count).map(WebSocketMessage::getPayloadAsText))
+							.subscribeWith(output)
+							.doOnNext(s -> logger.debug("inbound " + s))
+							.then()
+							.doOnTerminate((aVoid, ex) ->
+									logger.debug("Done with " + (ex != null ? ex.getMessage() : "success")));
+				})
 				.block(Duration.ofMillis(5000));
 
-		assertEquals(input.collectList().block(Duration.ofMillis(5000)), output.collectList().block(Duration.ofMillis(5000)));
+		assertEquals(input.collectList().block(Duration.ofMillis(5000)),
+				output.collectList().block(Duration.ofMillis(5000)));
 	}
 
 	@Test
 	public void subProtocol() throws Exception {
-
 		String protocol = "echo-v1";
 		AtomicReference<HandshakeInfo> infoRef = new AtomicReference<>();
 		MonoProcessor<Object> output = MonoProcessor.create();
 
 		client.execute(getUrl("/sub-protocol"),
 				new WebSocketHandler() {
-
 					@Override
-					public String[] getSubProtocols() {
-						return new String[] {protocol};
+					public List<String> getSubProtocols() {
+						return Collections.singletonList(protocol);
 					}
-
 					@Override
 					public Mono<Void> handle(WebSocketSession session) {
 						infoRef.set(session.getHandshakeInfo());
@@ -96,7 +108,7 @@ public class WebSocketIntegrationTests extends AbstractWebSocketIntegrationTests
 		HandshakeInfo info = infoRef.get();
 		assertThat(info.getHeaders().getFirst("Upgrade"), Matchers.equalToIgnoringCase("websocket"));
 		assertEquals(protocol, info.getHeaders().getFirst("Sec-WebSocket-Protocol"));
-		assertEquals("Wrong protocol accepted", protocol, info.getSubProtocol().orElse("none"));
+		assertEquals("Wrong protocol accepted", protocol, info.getSubProtocol());
 		assertEquals("Wrong protocol detected on the server side", protocol, output.block(Duration.ofMillis(5000)));
 	}
 
@@ -122,7 +134,6 @@ public class WebSocketIntegrationTests extends AbstractWebSocketIntegrationTests
 
 		@Bean
 		public HandlerMapping handlerMapping() {
-
 			Map<String, WebSocketHandler> map = new HashMap<>();
 			map.put("/echo", new EchoWebSocketHandler());
 			map.put("/sub-protocol", new SubProtocolWebSocketHandler());
@@ -149,13 +160,13 @@ public class WebSocketIntegrationTests extends AbstractWebSocketIntegrationTests
 	private static class SubProtocolWebSocketHandler implements WebSocketHandler {
 
 		@Override
-		public String[] getSubProtocols() {
-			return new String[] {"echo-v1"};
+		public List<String> getSubProtocols() {
+			return Collections.singletonList("echo-v1");
 		}
 
 		@Override
 		public Mono<Void> handle(WebSocketSession session) {
-			String protocol = session.getHandshakeInfo().getSubProtocol().orElse("none");
+			String protocol = session.getHandshakeInfo().getSubProtocol();
 			WebSocketMessage message = session.textMessage(protocol);
 			return doSend(session, Mono.just(message));
 		}

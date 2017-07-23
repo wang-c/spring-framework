@@ -253,10 +253,12 @@ public class DefaultServerResponseBuilderTests {
 
 	@Test
 	public void headers() throws Exception {
-		HttpHeaders headers = new HttpHeaders();
-		Mono<ServerResponse> result = ServerResponse.ok().headers(headers).build();
+		HttpHeaders newHeaders = new HttpHeaders();
+		newHeaders.set("foo", "bar");
+		Mono<ServerResponse> result =
+				ServerResponse.ok().headers(headers -> headers.addAll(newHeaders)).build();
 		StepVerifier.create(result)
-				.expectNextMatches(response -> headers.equals(response.headers()))
+				.expectNextMatches(response -> newHeaders.equals(response.headers()))
 				.expectComplete()
 				.verify();
 
@@ -270,9 +272,9 @@ public class DefaultServerResponseBuilderTests {
 		ServerWebExchange exchange = mock(ServerWebExchange.class);
 		MockServerHttpResponse response = new MockServerHttpResponse();
 		when(exchange.getResponse()).thenReturn(response);
-		HandlerStrategies strategies = mock(HandlerStrategies.class);
+		ServerResponse.Context context = mock(ServerResponse.Context.class);
 
-		result.flatMap(res -> res.writeTo(exchange, strategies)).block();
+		result.flatMap(res -> res.writeTo(exchange, context)).block();
 
 		assertEquals(HttpStatus.CREATED, response.getStatusCode());
 		assertEquals("MyValue", response.getHeaders().getFirst("MyKey"));
@@ -287,9 +289,9 @@ public class DefaultServerResponseBuilderTests {
 		ServerWebExchange exchange = mock(ServerWebExchange.class);
 		MockServerHttpResponse response = new MockServerHttpResponse();
 		when(exchange.getResponse()).thenReturn(response);
-		HandlerStrategies strategies = mock(HandlerStrategies.class);
+		ServerResponse.Context context = mock(ServerResponse.Context.class);
 
-		result.flatMap(res -> res.writeTo(exchange, strategies)).block();
+		result.flatMap(res -> res.writeTo(exchange, context)).block();
 
 		StepVerifier.create(response.getBody()).expectComplete().verify();
 	}

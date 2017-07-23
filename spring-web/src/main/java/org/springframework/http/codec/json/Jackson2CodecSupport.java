@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.databind.JavaType;
@@ -33,8 +32,10 @@ import com.fasterxml.jackson.databind.type.TypeFactory;
 import org.springframework.core.GenericTypeResolver;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.ResolvableType;
+import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.MimeType;
+import org.springframework.util.ObjectUtils;
 
 /**
  * Base class providing support methods for Jackson 2.9 encoding and decoding.
@@ -60,44 +61,53 @@ public abstract class Jackson2CodecSupport {
 				new MimeType("application", "*+json", StandardCharsets.UTF_8));
 
 
-	protected final ObjectMapper objectMapper;
+	private final ObjectMapper objectMapper;
+
+	private final List<MimeType> mimeTypes;
 
 
 	/**
 	 * Constructor with a Jackson {@link ObjectMapper} to use.
 	 */
-	protected Jackson2CodecSupport(ObjectMapper objectMapper) {
+	protected Jackson2CodecSupport(ObjectMapper objectMapper, MimeType... mimeTypes) {
 		Assert.notNull(objectMapper, "ObjectMapper must not be null");
 		this.objectMapper = objectMapper;
+		this.mimeTypes = !ObjectUtils.isEmpty(mimeTypes) ? Arrays.asList(mimeTypes) : JSON_MIME_TYPES;
 	}
 
 
-	protected boolean supportsMimeType(MimeType mimeType) {
-		return (mimeType == null ||
-				JSON_MIME_TYPES.stream().anyMatch(m -> m.isCompatibleWith(mimeType)));
+	protected ObjectMapper objectMapper() {
+		return this.objectMapper;
 	}
 
-	protected JavaType getJavaType(Type type, Class<?> contextClass) {
+	protected boolean supportsMimeType(@Nullable MimeType mimeType) {
+		return (mimeType == null || this.mimeTypes.stream().anyMatch(m -> m.isCompatibleWith(mimeType)));
+	}
+
+	protected JavaType getJavaType(Type type, @Nullable Class<?> contextClass) {
 		TypeFactory typeFactory = this.objectMapper.getTypeFactory();
 		return typeFactory.constructType(GenericTypeResolver.resolveType(type, contextClass));
 	}
 
-	protected Map<String, Object> getHints(ResolvableType actualType) {
-		return getParameter(actualType)
-				.flatMap(parameter -> Optional.ofNullable(getAnnotation(parameter, JsonView.class))
-						.map(annotation -> {
-							Class<?>[] classes = annotation.value();
-							Assert.isTrue(classes.length == 1, JSON_VIEW_HINT_ERROR + parameter);
-							return Collections.<String, Object>singletonMap(JSON_VIEW_HINT, classes[0]);
-						}))
-				.orElse(Collections.emptyMap());
+	protected Map<String, Object> getHints(ResolvableType resolvableType) {
+		MethodParameter param = getParameter(resolvableType);
+		if (param != null) {
+			JsonView annotation = getAnnotation(param, JsonView.class);
+			if (annotation != null) {
+				Class<?>[] classes = annotation.value();
+				Assert.isTrue(classes.length == 1, JSON_VIEW_HINT_ERROR + param);
+				return Collections.singletonMap(JSON_VIEW_HINT, classes[0]);
+			}
+		}
+		return Collections.emptyMap();
 	}
 
-	protected Optional<MethodParameter> getParameter(ResolvableType type) {
-		return Optional.ofNullable(type.getSource() instanceof MethodParameter ?
-				(MethodParameter) type.getSource() : null);
+	@Nullable
+	protected MethodParameter getParameter(ResolvableType type) {
+		return type.getSource() instanceof MethodParameter ? (MethodParameter) type.getSource() : null;
 	}
 
+	@Nullable
 	protected abstract <A extends Annotation> A getAnnotation(MethodParameter parameter, Class<A> annotType);
 
 }

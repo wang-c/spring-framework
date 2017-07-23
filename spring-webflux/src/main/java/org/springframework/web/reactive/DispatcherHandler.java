@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.springframework.web.reactive;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -67,11 +68,11 @@ public class DispatcherHandler implements WebHandler, ApplicationContextAware {
 
 	private static final Log logger = LogFactory.getLog(DispatcherHandler.class);
 
-	private List<HandlerMapping> handlerMappings;
+	private List<HandlerMapping> handlerMappings = Collections.emptyList();
 
-	private List<HandlerAdapter> handlerAdapters;
+	private List<HandlerAdapter> handlerAdapters = Collections.emptyList();
 
-	private List<HandlerResultHandler> resultHandlers;
+	private List<HandlerResultHandler> resultHandlers = Collections.emptyList();
 
 
 	/**
@@ -120,7 +121,7 @@ public class DispatcherHandler implements WebHandler, ApplicationContextAware {
 	public Mono<Void> handle(ServerWebExchange exchange) {
 		if (logger.isDebugEnabled()) {
 			ServerHttpRequest request = exchange.getRequest();
-			logger.debug("Processing " + request.getMethod() + " request for [" + request.getURI() + "]");
+			logger.debug("Processing " + request.getMethodValue() + " request for [" + request.getURI() + "]");
 		}
 		return Flux.fromIterable(this.handlerMappings)
 				.concatMap(mapping -> mapping.getHandler(exchange))

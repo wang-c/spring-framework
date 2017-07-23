@@ -29,6 +29,7 @@ import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.validation.BindException;
 import org.springframework.validation.Errors;
@@ -58,6 +59,7 @@ import org.springframework.web.method.support.ModelAndViewContainer;
  *
  * @author Rossen Stoyanchev
  * @author Juergen Hoeller
+ * @author Sebastien Deleuze
  * @since 3.1
  */
 public class ModelAttributeMethodProcessor implements HandlerMethodArgumentResolver, HandlerMethodReturnValueHandler {
@@ -101,8 +103,11 @@ public class ModelAttributeMethodProcessor implements HandlerMethodArgumentResol
 	 * @throws Exception if WebDataBinder initialization fails
 	 */
 	@Override
-	public final Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
-			NativeWebRequest webRequest, WebDataBinderFactory binderFactory) throws Exception {
+	public final Object resolveArgument(MethodParameter parameter, @Nullable ModelAndViewContainer mavContainer,
+			NativeWebRequest webRequest, @Nullable WebDataBinderFactory binderFactory) throws Exception {
+
+		Assert.state(mavContainer != null, "ModelAttributeMethodProcessor requires ModelAndViewContainer");
+		Assert.state(binderFactory != null, "ModelAttributeMethodProcessor requires WebDataBinderFactory");
 
 		String name = ModelFactory.getNameForParameter(parameter);
 		Object attribute = (mavContainer.containsAttribute(name) ? mavContainer.getModel().get(name) :
@@ -153,13 +158,13 @@ public class ModelAttributeMethodProcessor implements HandlerMethodArgumentResol
 	protected Object createAttribute(String attributeName, MethodParameter parameter,
 			WebDataBinderFactory binderFactory, NativeWebRequest webRequest) throws Exception {
 
-		Constructor<?>[] ctors = parameter.getParameterType().getConstructors();
-		if (ctors.length != 1) {
-			// No standard data class or standard JavaBeans arrangement ->
-			// defensively go with default constructor, expecting regular bean property bindings.
-			return BeanUtils.instantiateClass(parameter.getParameterType());
+		Class<?> type = parameter.getParameterType();
+		
+		Constructor<?> ctor = BeanUtils.findPrimaryConstructor(type);
+		if (ctor == null) {
+			throw new IllegalStateException("No primary constructor found for " + type.getName());
 		}
-		Constructor<?> ctor = ctors[0];
+
 		if (ctor.getParameterCount() == 0) {
 			// A single default constructor -> clearly a standard JavaBeans arrangement.
 			return BeanUtils.instantiateClass(ctor);
@@ -175,8 +180,9 @@ public class ModelAttributeMethodProcessor implements HandlerMethodArgumentResol
 		Object[] args = new Object[paramTypes.length];
 		WebDataBinder binder = binderFactory.createBinder(webRequest, null, attributeName);
 		for (int i = 0; i < paramNames.length; i++) {
-			args[i] = binder.convertIfNecessary(
-					webRequest.getParameterValues(paramNames[i]), paramTypes[i], new MethodParameter(ctor, i));
+			String[] parameterValues = webRequest.getParameterValues(paramNames[i]);
+			args[i] = (parameterValues != null ? binder.convertIfNecessary(parameterValues, paramTypes[i],
+					new MethodParameter(ctor, i)) : null);
 		}
 		return BeanUtils.instantiateClass(ctor, args);
 	}
@@ -219,7 +225,7 @@ public class ModelAttributeMethodProcessor implements HandlerMethodArgumentResol
 	 */
 	protected boolean isBindExceptionRequired(WebDataBinder binder, MethodParameter parameter) {
 		int i = parameter.getParameterIndex();
-		Class<?>[] paramTypes = parameter.getMethod().getParameterTypes();
+		Class<?>[] paramTypes = parameter.getExecutable().getParameterTypes();
 		boolean hasBindingResult = (paramTypes.length > (i + 1) && Errors.class.isAssignableFrom(paramTypes[i + 1]));
 		return !hasBindingResult;
 	}
@@ -239,7 +245,7 @@ public class ModelAttributeMethodProcessor implements HandlerMethodArgumentResol
 	 * Add non-null return values to the {@link ModelAndViewContainer}.
 	 */
 	@Override
-	public void handleReturnValue(Object returnValue, MethodParameter returnType,
+	public void handleReturnValue(@Nullable Object returnValue, MethodParameter returnType,
 			ModelAndViewContainer mavContainer, NativeWebRequest webRequest) throws Exception {
 
 		if (returnValue != null) {

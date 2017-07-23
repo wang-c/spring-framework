@@ -19,9 +19,11 @@ package org.springframework.web.reactive.function.server;
 import java.net.URI;
 import java.time.ZonedDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
@@ -31,11 +33,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.HttpMessageWriter;
 import org.springframework.http.codec.json.Jackson2CodecSupport;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.util.Assert;
 import org.springframework.web.reactive.function.BodyInserter;
 import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.result.view.ViewResolver;
 import org.springframework.web.server.ServerWebExchange;
 
 /**
@@ -64,10 +68,10 @@ public interface ServerResponse {
 	/**
 	 * Write this response to the given web exchange.
 	 * @param exchange the web exchange to write to
-	 * @param strategies the strategies to use when writing
+	 * @param context the context to use when writing
 	 * @return {@code Mono<Void>} to indicate when writing is complete
 	 */
-	Mono<Void> writeTo(ServerWebExchange exchange, HandlerStrategies strategies);
+	Mono<Void> writeTo(ServerWebExchange exchange, Context context);
 
 
 	// Static builder methods
@@ -80,7 +84,7 @@ public interface ServerResponse {
 	static BodyBuilder from(ServerResponse other) {
 		Assert.notNull(other, "Other ServerResponse must not be null");
 		DefaultServerResponseBuilder builder = new DefaultServerResponseBuilder(other.statusCode());
-		return builder.headers(other.headers());
+		return builder.headers(headers -> headers.addAll(other.headers()));
 	}
 
 	/**
@@ -204,12 +208,15 @@ public interface ServerResponse {
 		B header(String headerName, String... headerValues);
 
 		/**
-		 * Copy the given headers into the entity's headers map.
-		 * @param headers the existing HttpHeaders to copy from
+		 * Manipulate this response's headers with the given consumer. The
+		 * headers provided to the consumer are "live", so that the consumer can be used to
+		 * {@linkplain HttpHeaders#set(String, String) overwrite} existing header values,
+		 * {@linkplain HttpHeaders#remove(Object) remove} values, or use any of the other
+		 * {@link HttpHeaders} methods.
+		 * @param headersConsumer a function that consumes the {@code HttpHeaders}
 		 * @return this builder
-		 * @see HttpHeaders#add(String, String)
 		 */
-		B headers(HttpHeaders headers);
+		B headers(Consumer<HttpHeaders> headersConsumer);
 
 		/**
 		 * Set the set of allowed {@link HttpMethod HTTP methods}, as specified
@@ -298,7 +305,7 @@ public interface ServerResponse {
 		 * @param writeFunction the function used to write to the {@link ServerWebExchange}
 		 * @return the built response
 		 */
-		Mono<ServerResponse> build(BiFunction<ServerWebExchange, HandlerStrategies, Mono<Void>> writeFunction);
+		Mono<ServerResponse> build(BiFunction<ServerWebExchange, Context, Mono<Void>> writeFunction);
 	}
 
 
@@ -384,5 +391,25 @@ public interface ServerResponse {
 		 */
 		Mono<ServerResponse> render(String name, Map<String, ?> model);
 	}
+
+
+	/**
+	 * Defines the context used during the {@link #writeTo(ServerWebExchange, Context)}.
+	 */
+	interface Context {
+
+		/**
+		 * Return the {@link HttpMessageWriter}s to be used for response body conversion.
+		 * @return the list of message writers
+		 */
+		List<HttpMessageWriter<?>> messageWriters();
+
+		/**
+		 * Return the  {@link ViewResolver}s to be used for view name resolution.
+		 * @return the list of view resolvers
+		 */
+		List<ViewResolver> viewResolvers();
+	}
+
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import org.springframework.core.ResolvableType;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.MediaType;
 import org.springframework.http.ReactiveHttpOutputMessage;
+import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.MultiValueMap;
 
@@ -62,7 +63,7 @@ public class FormHttpMessageWriter implements HttpMessageWriter<MultiValueMap<St
 	 * <p>By default this is set to "UTF-8".
 	 */
 	public void setDefaultCharset(Charset charset) {
-		Assert.notNull(charset, "'charset' must not be null");
+		Assert.notNull(charset, "Charset must not be null");
 		this.defaultCharset = charset;
 	}
 
@@ -75,14 +76,14 @@ public class FormHttpMessageWriter implements HttpMessageWriter<MultiValueMap<St
 
 
 	@Override
-	public boolean canWrite(ResolvableType elementType, MediaType mediaType) {
+	public boolean canWrite(ResolvableType elementType, @Nullable MediaType mediaType) {
 		return MULTIVALUE_TYPE.isAssignableFrom(elementType) &&
 				(mediaType == null || MediaType.APPLICATION_FORM_URLENCODED.isCompatibleWith(mediaType));
 	}
 
 	@Override
 	public Mono<Void> write(Publisher<? extends MultiValueMap<String, String>> inputStream,
-			ResolvableType elementType, MediaType mediaType, ReactiveHttpOutputMessage message,
+			ResolvableType elementType, @Nullable MediaType mediaType, ReactiveHttpOutputMessage message,
 			Map<String, Object> hints) {
 
 		MediaType contentType = message.getHeaders().getContentType();
@@ -106,7 +107,7 @@ public class FormHttpMessageWriter implements HttpMessageWriter<MultiValueMap<St
 
 	}
 
-	private Charset getMediaTypeCharset(MediaType mediaType) {
+	private Charset getMediaTypeCharset(@Nullable MediaType mediaType) {
 		if (mediaType != null && mediaType.getCharset() != null) {
 			return mediaType.getCharset();
 		}

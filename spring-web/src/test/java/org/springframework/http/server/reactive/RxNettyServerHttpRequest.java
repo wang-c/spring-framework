@@ -19,7 +19,6 @@ package org.springframework.http.server.reactive;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Optional;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.cookie.Cookie;
@@ -32,7 +31,6 @@ import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.NettyDataBufferFactory;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.util.Assert;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -55,30 +53,29 @@ public class RxNettyServerHttpRequest extends AbstractServerHttpRequest {
 
 
 	public RxNettyServerHttpRequest(HttpServerRequest<ByteBuf> request,
-			NettyDataBufferFactory dataBufferFactory, InetSocketAddress remoteAddress) {
+			NettyDataBufferFactory dataBufferFactory, InetSocketAddress remoteAddress)
+			throws URISyntaxException {
 
-		super(initUri(request, remoteAddress), initHeaders(request));
-
-		Assert.notNull(dataBufferFactory, "'dataBufferFactory' must not be null");
+		super(initUri(request, remoteAddress), "", initHeaders(request));
 		this.request = request;
+
+		Assert.notNull(dataBufferFactory, "NettyDataBufferFactory must not be null");
 		this.dataBufferFactory = dataBufferFactory;
+
 		this.remoteAddress = remoteAddress;
 	}
 
-	private static URI initUri(HttpServerRequest<ByteBuf> request, InetSocketAddress remoteAddress) {
-		Assert.notNull(request, "'request' must not be null");
+	private static URI initUri(HttpServerRequest<ByteBuf> request, InetSocketAddress remoteAddress)
+			throws URISyntaxException {
+
+		Assert.notNull(request, "HttpServerRequest must not be null");
 		String requestUri = request.getUri();
-		return remoteAddress != null ? getBaseUrl(remoteAddress).resolve(requestUri) : URI.create(requestUri);
+		return (remoteAddress != null ? createUrl(remoteAddress, requestUri) : URI.create(requestUri));
 	}
 
-	private static URI getBaseUrl(InetSocketAddress address) {
-		try {
-			return new URI(null, null, address.getHostString(), address.getPort(), null, null, null);
-		}
-		catch (URISyntaxException ex) {
-			// Should not happen...
-			throw new IllegalStateException(ex);
-		}
+	private static URI createUrl(InetSocketAddress address, String requestUri) throws URISyntaxException {
+		URI baseUrl = new URI(null, null, address.getHostString(), address.getPort(), null, null, null);
+		return new URI(baseUrl.toString() + requestUri);
 	}
 
 	private static HttpHeaders initHeaders(HttpServerRequest<ByteBuf> request) {
@@ -95,8 +92,8 @@ public class RxNettyServerHttpRequest extends AbstractServerHttpRequest {
 	}
 
 	@Override
-	public HttpMethod getMethod() {
-		return HttpMethod.valueOf(this.request.getHttpMethod().name());
+	public String getMethodValue() {
+		return this.request.getHttpMethod().name();
 	}
 
 	@Override
@@ -112,8 +109,8 @@ public class RxNettyServerHttpRequest extends AbstractServerHttpRequest {
 	}
 
 	@Override
-	public Optional<InetSocketAddress> getRemoteAddress() {
-		return Optional.ofNullable(this.remoteAddress);
+	public InetSocketAddress getRemoteAddress() {
+		return this.remoteAddress;
 	}
 
 	@Override

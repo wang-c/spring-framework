@@ -44,7 +44,6 @@ import org.springframework.web.reactive.result.method.annotation.ResponseBodyRes
 import org.springframework.web.server.NotAcceptableStatusException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
-import org.springframework.web.server.ServerWebInputException;
 import org.springframework.web.server.WebExceptionHandler;
 import org.springframework.web.server.WebHandler;
 import org.springframework.web.server.handler.ExceptionHandlingWebHandler;
@@ -52,11 +51,8 @@ import org.springframework.web.server.handler.ExceptionHandlingWebHandler;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThat;
-import static org.springframework.http.MediaType.APPLICATION_JSON;
-
+import static org.junit.Assert.*;
+import static org.springframework.http.MediaType.*;
 
 /**
  * Test the effect of exceptions at different stages of request processing by
@@ -69,16 +65,15 @@ public class DispatcherHandlerErrorTests {
 
 	private static final IllegalStateException EXCEPTION = new IllegalStateException("boo");
 
-
 	private DispatcherHandler dispatcherHandler;
 
 
 	@Before
 	public void setup() throws Exception {
-		AnnotationConfigApplicationContext appContext = new AnnotationConfigApplicationContext();
-		appContext.register(TestConfig.class);
-		appContext.refresh();
-		this.dispatcherHandler = new DispatcherHandler(appContext);
+		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
+		ctx.register(TestConfig.class);
+		ctx.refresh();
+		this.dispatcherHandler = new DispatcherHandler(ctx);
 	}
 
 
@@ -90,8 +85,7 @@ public class DispatcherHandlerErrorTests {
 		StepVerifier.create(publisher)
 				.consumeErrorWith(error -> {
 					assertThat(error, instanceOf(ResponseStatusException.class));
-					assertThat(error.getMessage(),
-							is("Request failure [status: 404, reason: \"No matching handler\"]"));
+					assertThat(error.getMessage(), is("Response status 404 with reason \"No matching handler\""));
 				})
 				.verify();
 	}
@@ -102,7 +96,7 @@ public class DispatcherHandlerErrorTests {
 		Mono<Void> publisher = this.dispatcherHandler.handle(exchange);
 
 		StepVerifier.create(publisher)
-				.consumeErrorWith(error -> assertSame(EXCEPTION, error.getCause()))
+				.consumeErrorWith(error -> assertSame(EXCEPTION, error))
 				.verify();
 	}
 
@@ -151,10 +145,7 @@ public class DispatcherHandlerErrorTests {
 		Mono<Void> publisher = this.dispatcherHandler.handle(exchange);
 
 		StepVerifier.create(publisher)
-				.consumeErrorWith(error -> {
-					assertThat(error, instanceOf(ServerWebInputException.class));
-					assertSame(EXCEPTION, error.getCause());
-				})
+				.consumeErrorWith(error -> assertSame(EXCEPTION, error))
 				.verify();
 	}
 

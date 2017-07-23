@@ -30,7 +30,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-import org.springframework.core.ResolvableType;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.codec.CharSequenceEncoder;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
@@ -40,13 +40,16 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.EncoderHttpMessageWriter;
+import org.springframework.http.codec.HttpMessageWriter;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.mock.http.server.reactive.test.MockServerHttpRequest;
 import org.springframework.mock.http.server.reactive.test.MockServerWebExchange;
 import org.springframework.web.reactive.function.BodyInserter;
+import org.springframework.web.reactive.result.view.ViewResolver;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 
 /**
  * @author Arjen Poutsma
@@ -68,10 +71,10 @@ public class DefaultEntityResponseBuilderTests {
 	}
 
 	@Test
-	public void fromPublisherResolvableType() throws Exception {
+	public void fromPublisher() throws Exception {
 		Flux<String> body = Flux.just("foo", "bar");
-		ResolvableType type = ResolvableType.forClass(String.class);
-		EntityResponse<Flux<String>> response = EntityResponse.fromPublisher(body, type).build().block();
+		ParameterizedTypeReference<String> typeReference = new ParameterizedTypeReference<String>() {};
+		EntityResponse<Flux<String>> response = EntityResponse.fromPublisher(body, typeReference).build().block();
 		assertSame(body, response.entity());
 	}
 
@@ -190,17 +193,24 @@ public class DefaultEntityResponseBuilderTests {
 
 		MockServerWebExchange exchange = MockServerHttpRequest.get("http://localhost").toExchange();
 
-		HandlerStrategies strategies = HandlerStrategies.empty()
-				.customCodecs(configurer -> configurer.writer(new EncoderHttpMessageWriter<>(CharSequenceEncoder.allMimeTypes())))
-				.build();
+		ServerResponse.Context context = new ServerResponse.Context() {
+			@Override
+			public List<HttpMessageWriter<?>> messageWriters() {
+				return Collections.<HttpMessageWriter<?>>singletonList(new EncoderHttpMessageWriter<>(CharSequenceEncoder.allMimeTypes()));
+			}
 
+			@Override
+			public List<ViewResolver> viewResolvers() {
+				return Collections.<ViewResolver>emptyList();
+			}
+		};
 		StepVerifier.create(result)
 				.consumeNextWith(response -> {
 					StepVerifier.create(response.entity())
 							.expectNext(body)
 							.expectComplete()
 							.verify();
-					response.writeTo(exchange, strategies);
+					response.writeTo(exchange, context);
 				})
 				.expectComplete()
 				.verify();

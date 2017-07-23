@@ -24,7 +24,6 @@ import java.util.function.Function;
 
 import reactor.core.publisher.Mono;
 
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.client.reactive.ClientHttpConnector;
 import org.springframework.http.client.reactive.ClientHttpRequest;
@@ -42,15 +41,12 @@ import org.springframework.util.Assert;
  */
 class WiretapConnector implements ClientHttpConnector {
 
-	public static final String REQUEST_ID_HEADER_NAME = "request-id";
-
-
 	private final ClientHttpConnector delegate;
 
 	private final Map<String, ExchangeResult> exchanges = new ConcurrentHashMap<>();
 
 
-	public WiretapConnector(ClientHttpConnector delegate) {
+	WiretapConnector(ClientHttpConnector delegate) {
 		this.delegate = delegate;
 	}
 
@@ -69,8 +65,8 @@ class WiretapConnector implements ClientHttpConnector {
 				})
 				.map(response ->  {
 					WiretapClientHttpRequest wrappedRequest = requestRef.get();
-					String requestId = getRequestId(wrappedRequest.getHeaders());
-					Assert.notNull(requestId, "No request-id header");
+					String requestId = wrappedRequest.getHeaders().getFirst(WebTestClient.WEBTESTCLIENT_REQUEST_ID);
+					Assert.state(requestId != null, () -> "No \"" + WebTestClient.WEBTESTCLIENT_REQUEST_ID + "\" header");
 					WiretapClientHttpResponse wrappedResponse = new WiretapClientHttpResponse(response);
 					ExchangeResult result = new ExchangeResult(wrappedRequest, wrappedResponse);
 					this.exchanges.put(requestId, result);
@@ -78,18 +74,12 @@ class WiretapConnector implements ClientHttpConnector {
 				});
 	}
 
-	public static String getRequestId(HttpHeaders headers) {
-		String requestId = headers.getFirst(REQUEST_ID_HEADER_NAME);
-		Assert.notNull(requestId, "No request-id header");
-		return requestId;
-	}
-
 	/**
 	 * Retrieve the {@code ExchangeResult} for the given "request-id" header value.
 	 */
 	public ExchangeResult claimRequest(String requestId) {
-		ExchangeResult result = this.exchanges.get(requestId);
-		Assert.notNull(result, "No match for request with id [" + requestId + "]");
+		ExchangeResult result = this.exchanges.remove(requestId);
+		Assert.state(result != null, () -> "No match for " + WebTestClient.WEBTESTCLIENT_REQUEST_ID + "=" + requestId);
 		return result;
 	}
 
