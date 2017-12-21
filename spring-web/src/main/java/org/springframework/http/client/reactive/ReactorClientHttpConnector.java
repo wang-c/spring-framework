@@ -38,21 +38,17 @@ import org.springframework.http.HttpMethod;
  */
 public class ReactorClientHttpConnector implements ClientHttpConnector {
 
-	private static final Mono<ClientHttpResponse> NO_CLIENT_RESPONSE_ERROR = Mono.error(
-			new IllegalStateException("HttpClient completed without a response. " +
-					"As a temporary workaround try to disable connection pool. " +
-					"See https://github.com/reactor/reactor-netty/issues/138."));
-
-
 	private final HttpClient httpClient;
 
 
 	/**
-	 * Create a Reactor Netty {@link ClientHttpConnector} with default {@link ClientOptions}
-	 * and SSL support enabled.
+	 * Create a Reactor Netty {@link ClientHttpConnector}
+	 * with default {@link ClientOptions} and HTTP compression support enabled.
 	 */
 	public ReactorClientHttpConnector() {
-		this.httpClient = HttpClient.create();
+		this.httpClient = HttpClient.builder()
+				.options(options -> options.compression(true))
+				.build();
 	}
 
 	/**
@@ -76,8 +72,7 @@ public class ReactorClientHttpConnector implements ClientHttpConnector {
 				.request(adaptHttpMethod(method),
 						uri.toString(),
 						request -> requestCallback.apply(adaptRequest(method, uri, request)))
-				.map(this::adaptResponse)
-				.switchIfEmpty(NO_CLIENT_RESPONSE_ERROR);
+				.map(this::adaptResponse);
 	}
 
 	private io.netty.handler.codec.http.HttpMethod adaptHttpMethod(HttpMethod method) {

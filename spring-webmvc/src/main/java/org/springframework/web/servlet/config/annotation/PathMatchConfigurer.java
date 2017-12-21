@@ -19,7 +19,6 @@ package org.springframework.web.servlet.config.annotation;
 import org.springframework.lang.Nullable;
 import org.springframework.util.PathMatcher;
 import org.springframework.web.util.UrlPathHelper;
-import org.springframework.web.util.pattern.ParsingPathMatcher;
 
 /**
  * Helps with configuring HandlerMappings path matching options such as trailing
@@ -85,9 +84,7 @@ public class PathMatchConfigurer {
 	 * <p>By default this is set to "false".
 	 * @see WebMvcConfigurer#configureContentNegotiation
 	 */
-	public PathMatchConfigurer setUseRegisteredSuffixPatternMatch(
-			Boolean registeredSuffixPatternMatch) {
-
+	public PathMatchConfigurer setUseRegisteredSuffixPatternMatch(Boolean registeredSuffixPatternMatch) {
 		this.registeredSuffixPatternMatch = registeredSuffixPatternMatch;
 		return this;
 	}
@@ -136,11 +133,6 @@ public class PathMatchConfigurer {
 
 	@Nullable
 	public PathMatcher getPathMatcher() {
-		if (this.pathMatcher instanceof ParsingPathMatcher &&
-				(Boolean.TRUE.equals(this.trailingSlashMatch) || Boolean.TRUE.equals(this.suffixPatternMatch))) {
-			throw new IllegalStateException("When using a ParsingPathMatcher, useTrailingSlashMatch" +
-					" and useSuffixPatternMatch should be set to 'false'.");
-		}
 		return this.pathMatcher;
 	}
 

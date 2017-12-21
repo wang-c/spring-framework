@@ -231,11 +231,7 @@ class ConfigurationClassParser {
 				// Explicit bean definition found, probably replacing an import.
 				// Let's remove the old one and go with the new one.
 				this.configurationClasses.remove(configClass);
-				for (Iterator<ConfigurationClass> it = this.knownSuperclasses.values().iterator(); it.hasNext();) {
-					if (configClass.equals(it.next())) {
-						it.remove();
-					}
-				}
+				this.knownSuperclasses.values().removeIf(configClass::equals);
 			}
 		}
 
@@ -714,6 +710,7 @@ class ConfigurationClassParser {
 		}
 
 		@Override
+		@Nullable
 		public AnnotationMetadata getImportingClassFor(String importedClass) {
 			List<AnnotationMetadata> list = this.imports.get(importedClass);
 			return (!CollectionUtils.isEmpty(list) ? list.get(list.size() - 1) : null);

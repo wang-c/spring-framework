@@ -28,15 +28,18 @@ import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.codec.HttpMessageWriter;
 import org.springframework.http.codec.json.Jackson2CodecSupport;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.util.Assert;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserter;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.result.view.ViewResolver;
@@ -64,6 +67,11 @@ public interface ServerResponse {
 	 * Return the headers of this response.
 	 */
 	HttpHeaders headers();
+
+	/**
+	 * Return the cookies of this response.
+	 */
+	MultiValueMap<String, ResponseCookie> cookies();
 
 	/**
 	 * Write this response to the given web exchange.
@@ -219,6 +227,24 @@ public interface ServerResponse {
 		B headers(Consumer<HttpHeaders> headersConsumer);
 
 		/**
+		 * Add the given cookie to the response.
+		 * @param cookie the cookie to add
+		 * @return this builder
+		 */
+		B cookie(ResponseCookie cookie);
+
+		/**
+		 * Manipulate this response's cookies with the given consumer. The
+		 * cookies provided to the consumer are "live", so that the consumer can be used to
+		 * {@linkplain MultiValueMap#set(Object, Object) overwrite} existing cookies,
+		 * {@linkplain MultiValueMap#remove(Object) remove} cookies, or use any of the other
+		 * {@link MultiValueMap} methods.
+		 * @param cookiesConsumer a function that consumes the cookies
+		 * @return this builder
+		 */
+		B cookies(Consumer<MultiValueMap<String, ResponseCookie>> cookiesConsumer);
+
+		/**
 		 * Set the set of allowed {@link HttpMethod HTTP methods}, as specified
 		 * by the {@code Allow} header.
 		 *
@@ -351,6 +377,19 @@ public interface ServerResponse {
 		 * @return the built response
 		 */
 		<T, P extends Publisher<T>> Mono<ServerResponse> body(P publisher, Class<T> elementClass);
+
+		/**
+		 * Set the body of the response to the given asynchronous {@code Publisher} and return it.
+		 * This convenience method combines {@link #body(BodyInserter)} and
+		 * {@link BodyInserters#fromPublisher(Publisher, Class)}.
+		 * @param publisher the {@code Publisher} to write to the response
+		 * @param typeReference a type reference describing the elements contained in the publisher
+		 * @param <T> the type of the elements contained in the publisher
+		 * @param <P> the type of the {@code Publisher}
+		 * @return the built response
+		 */
+		<T, P extends Publisher<T>> Mono<ServerResponse> body(P publisher,
+				ParameterizedTypeReference<T> typeReference);
 
 		/**
 		 * Set the body of the response to the given synchronous {@code Object} and return it.

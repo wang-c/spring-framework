@@ -37,7 +37,9 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
+import org.springframework.core.GenericTypeResolver;
 import org.springframework.core.MethodParameter;
+import org.springframework.core.ResolvableType;
 import org.springframework.lang.Nullable;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageHeaders;
@@ -205,8 +207,9 @@ public class MappingJackson2MessageConverter extends AbstractMessageConverter {
 	}
 
 	@Override
+	@Nullable
 	protected Object convertFromInternal(Message<?> message, Class<?> targetClass, @Nullable Object conversionHint) {
-		JavaType javaType = this.objectMapper.constructType(targetClass);
+		JavaType javaType = getJavaType(targetClass, conversionHint);
 		Object payload = message.getPayload();
 		Class<?> view = getSerializationView(conversionHint);
 		// Note: in the view case, calling withType instead of forType for compatibility with Jackson <2.5
@@ -233,9 +236,23 @@ public class MappingJackson2MessageConverter extends AbstractMessageConverter {
 		}
 	}
 
+	private JavaType getJavaType(Class<?> targetClass, @Nullable Object conversionHint) {
+		if (conversionHint instanceof MethodParameter) {
+			MethodParameter param = (MethodParameter) conversionHint;
+			param = param.nestedIfOptional();
+			Type genericParameterType = param.getNestedGenericParameterType();
+			Class<?> contextClass = param.getContainingClass();
+			Type type = GenericTypeResolver.resolveType(genericParameterType, contextClass);
+			return this.objectMapper.getTypeFactory().constructType(type);
+		}
+		return this.objectMapper.constructType(targetClass);
+	}
+
 	@Override
 	@Nullable
-	protected Object convertToInternal(Object payload, @Nullable MessageHeaders headers, @Nullable Object conversionHint) {
+	protected Object convertToInternal(Object payload, @Nullable MessageHeaders headers,
+			@Nullable Object conversionHint) {
+
 		try {
 			Class<?> view = getSerializationView(conversionHint);
 			if (byte[].class == getSerializedPayloadClass()) {

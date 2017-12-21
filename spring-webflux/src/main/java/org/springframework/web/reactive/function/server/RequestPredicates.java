@@ -35,16 +35,18 @@ import org.apache.commons.logging.LogFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.http.server.reactive.PathContainer;
+import org.springframework.http.server.PathContainer;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyExtractor;
 import org.springframework.web.server.WebSession;
+import org.springframework.web.util.UriBuilder;
 import org.springframework.web.util.UriUtils;
 import org.springframework.web.util.pattern.PathPattern;
 import org.springframework.web.util.pattern.PathPatternParser;
@@ -342,10 +344,10 @@ public abstract class RequestPredicates {
 		@Override
 		public boolean test(ServerRequest request) {
 			PathContainer pathContainer = request.pathContainer();
-			boolean match = this.pattern.matches(pathContainer);
-			traceMatch("Pattern", this.pattern.getPatternString(), request.path(), match);
-			if (match) {
-				mergeTemplateVariables(request, this.pattern.matchAndExtract(pathContainer).getUriVariables());
+			PathPattern.PathMatchInfo info = this.pattern.matchAndExtract(pathContainer);
+			traceMatch("Pattern", this.pattern.getPatternString(), request.path(), info != null);
+			if (info != null) {
+				mergeTemplateVariables(request, info.getUriVariables());
 				return true;
 			}
 			else {
@@ -355,7 +357,7 @@ public abstract class RequestPredicates {
 
 		@Override
 		public Optional<ServerRequest> nest(ServerRequest request) {
-			return Optional.ofNullable(this.pattern.getPathRemaining(request.pathContainer()))
+			return Optional.ofNullable(this.pattern.matchStartOfPath(request.pathContainer()))
 					.map(info -> {
 						mergeTemplateVariables(request, info.getUriVariables());
 						return new SubPathServerRequestWrapper(request, info);
@@ -476,8 +478,18 @@ public abstract class RequestPredicates {
 		}
 
 		@Override
+		public String methodName() {
+			return this.request.methodName();
+		}
+
+		@Override
 		public URI uri() {
 			return this.request.uri();
+		}
+
+		@Override
+		public UriBuilder uriBuilder() {
+			return this.request.uriBuilder();
 		}
 
 		@Override
@@ -516,8 +528,18 @@ public abstract class RequestPredicates {
 		}
 
 		@Override
+		public <T> Mono<T> bodyToMono(ParameterizedTypeReference<T> typeReference) {
+			return this.request.bodyToMono(typeReference);
+		}
+
+		@Override
 		public <T> Flux<T> bodyToFlux(Class<? extends T> elementClass) {
 			return this.request.bodyToFlux(elementClass);
+		}
+
+		@Override
+		public <T> Flux<T> bodyToFlux(ParameterizedTypeReference<T> typeReference) {
+			return this.request.bodyToFlux(typeReference);
 		}
 
 		@Override

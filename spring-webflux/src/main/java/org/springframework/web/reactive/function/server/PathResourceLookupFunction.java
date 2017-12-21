@@ -26,7 +26,7 @@ import reactor.core.publisher.Mono;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
-import org.springframework.http.server.reactive.PathContainer;
+import org.springframework.http.server.PathContainer;
 import org.springframework.util.ResourceUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.util.pattern.PathPattern;
@@ -155,4 +155,8 @@ class PathResourceLookupFunction implements Function<ServerRequest, Mono<Resourc
 		return true;
 	}
 
+	@Override
+	public String toString() {
+		return String.format("%s -> %s", this.pattern, this.location);
+	}
 }

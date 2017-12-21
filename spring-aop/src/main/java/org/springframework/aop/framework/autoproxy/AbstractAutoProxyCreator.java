@@ -48,6 +48,7 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.config.SmartInstantiationAwareBeanPostProcessor;
 import org.springframework.lang.Nullable;
+import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
 /**
@@ -218,6 +219,7 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 
 
 	@Override
+	@Nullable
 	public Class<?> predictBeanType(Class<?> beanClass, String beanName) {
 		if (this.proxyTypes.isEmpty()) {
 			return null;
@@ -227,6 +229,7 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 	}
 
 	@Override
+	@Nullable
 	public Constructor<?>[] determineCandidateConstructors(Class<?> beanClass, String beanName) throws BeansException {
 		return null;
 	}
@@ -541,6 +544,7 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 	 * @see #setInterceptorNames
 	 */
 	private Advisor[] resolveInterceptorNames() {
+		Assert.state(this.beanFactory != null, "BeanFactory required for resolving interceptor names");
 		ConfigurableBeanFactory cbf = (this.beanFactory instanceof ConfigurableBeanFactory ?
 				(ConfigurableBeanFactory) this.beanFactory : null);
 		List<Advisor> advisors = new ArrayList<>();

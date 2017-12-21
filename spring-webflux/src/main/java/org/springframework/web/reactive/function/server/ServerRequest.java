@@ -29,6 +29,7 @@ import java.util.OptionalLong;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -36,7 +37,7 @@ import org.springframework.http.HttpRange;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.HttpMessageReader;
 import org.springframework.http.codec.json.Jackson2CodecSupport;
-import org.springframework.http.server.reactive.PathContainer;
+import org.springframework.http.server.PathContainer;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
@@ -44,6 +45,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyExtractor;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebSession;
+import org.springframework.web.util.UriBuilder;
 
 /**
  * Represents a server-side HTTP request, as handled by a {@code HandlerFunction}.
@@ -58,14 +60,34 @@ public interface ServerRequest {
 
 	/**
 	 * Return the HTTP method.
+	 * @return the HTTP method as an HttpMethod enum value, or {@code null}
+	 * if not resolvable (e.g. in case of a non-standard HTTP method)
 	 */
 	@Nullable
-	HttpMethod method();
+	default HttpMethod method() {
+		return HttpMethod.resolve(methodName());
+	}
+
+	/**
+	 * Return the name of the HTTP method.
+	 * @return the HTTP method as a String
+	 */
+	String methodName();
 
 	/**
 	 * Return the request URI.
 	 */
 	URI uri();
+
+	/**
+	 * Return a {@code UriBuilderComponents}  from the URI associated with this
+	 * {@code ServerRequest}, while also overlaying with values from the headers
+	 * "Forwarded" (<a href="http://tools.ietf.org/html/rfc7239">RFC 7239</a>),
+	 * or "X-Forwarded-Host", "X-Forwarded-Port", and "X-Forwarded-Proto" if
+	 * "Forwarded" is not found.
+	 * @return a URI builder
+	 */
+	UriBuilder uriBuilder();
 
 	/**
 	 * Return the request path.
@@ -78,7 +100,7 @@ public interface ServerRequest {
 	 * Return the request path as {@code PathContainer}.
 	 */
 	default PathContainer pathContainer() {
-		return PathContainer.parseUrlPath(path());
+		return PathContainer.parsePath(path());
 	}
 
 	/**
@@ -119,12 +141,28 @@ public interface ServerRequest {
 	<T> Mono<T> bodyToMono(Class<? extends T> elementClass);
 
 	/**
+	 * Extract the body to a {@code Mono}.
+	 * @param typeReference a type reference describing the expected response request type
+	 * @param <T> the element type
+	 * @return a mono containing the body of the given type {@code T}
+	 */
+	<T> Mono<T> bodyToMono(ParameterizedTypeReference<T> typeReference);
+
+	/**
 	 * Extract the body to a {@code Flux}.
 	 * @param elementClass the class of element in the {@code Flux}
 	 * @param <T> the element type
 	 * @return the body as a flux
 	 */
 	<T> Flux<T> bodyToFlux(Class<? extends T> elementClass);
+
+	/**
+	 * Extract the body to a {@code Flux}.
+	 * @param typeReference a type reference describing the expected request body type
+	 * @param <T> the element type
+	 * @return a flux containing the body of the given type {@code T}
+	 */
+	<T> Flux<T> bodyToFlux(ParameterizedTypeReference<T> typeReference);
 
 	/**
 	 * Return the request attribute value if present.

@@ -18,7 +18,6 @@ package org.springframework.web.reactive.resource;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +30,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
-import org.springframework.http.server.reactive.PathContainer;
+import org.springframework.http.server.PathContainer;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.handler.SimpleUrlHandlerMapping;
@@ -106,8 +105,8 @@ public class ResourceUrlProvider implements ApplicationListener<ContextRefreshed
 	private void detectResourceHandlers(ApplicationContext context) {
 		logger.debug("Looking for resource handler mappings");
 
-		Map<String, SimpleUrlHandlerMapping> map = context.getBeansOfType(SimpleUrlHandlerMapping.class);
-		List<SimpleUrlHandlerMapping> mappings = new ArrayList<>(map.values());
+		Map<String, SimpleUrlHandlerMapping> beans = context.getBeansOfType(SimpleUrlHandlerMapping.class);
+		List<SimpleUrlHandlerMapping> mappings = new ArrayList<>(beans.values());
 		AnnotationAwareOrderComparator.sort(mappings);
 
 		mappings.forEach(mapping -> {
@@ -142,7 +141,7 @@ public class ResourceUrlProvider implements ApplicationListener<ContextRefreshed
 		int queryIndex = getQueryIndex(uriString);
 		String lookupPath = uriString.substring(0, queryIndex);
 		String query = uriString.substring(queryIndex);
-		PathContainer parsedLookupPath = PathContainer.parseUrlPath(lookupPath);
+		PathContainer parsedLookupPath = PathContainer.parsePath(lookupPath);
 		if (logger.isTraceEnabled()) {
 			logger.trace("Getting resource URL for lookup path \"" + lookupPath + "\"");
 		}
@@ -166,7 +165,8 @@ public class ResourceUrlProvider implements ApplicationListener<ContextRefreshed
 	private Mono<String> resolveResourceUrl(PathContainer lookupPath) {
 		return this.handlerMap.entrySet().stream()
 				.filter(entry -> entry.getKey().matches(lookupPath))
-				.sorted(Comparator.comparing(Map.Entry::getKey))
+				.sorted((entry1, entry2) ->
+						PathPattern.SPECIFICITY_COMPARATOR.compare(entry1.getKey(), entry2.getKey()))
 				.findFirst()
 				.map(entry -> {
 					PathContainer path = entry.getKey().extractPathWithinPattern(lookupPath);

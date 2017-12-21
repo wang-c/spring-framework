@@ -16,12 +16,13 @@
 
 package org.springframework.core.io.buffer;
 
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
+import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileChannel;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,8 +31,8 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.stream.Collectors;
 
-import org.junit.Ignore;
 import org.junit.Test;
+import org.mockito.stubbing.Answer;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
@@ -39,6 +40,8 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 
 import static org.junit.Assert.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 /**
  * @author Arjen Poutsma
@@ -207,7 +210,6 @@ public class DataBufferUtilsTests extends AbstractDataBufferAllocatingTestCase {
 	}
 
 	@Test
-	@Ignore  // SPR-15798
 	public void writeAsynchronousFileChannel() throws Exception {
 		DataBuffer foo = stringBuffer("foo");
 		DataBuffer bar = stringBuffer("bar");
@@ -294,16 +296,56 @@ public class DataBufferUtilsTests extends AbstractDataBufferAllocatingTestCase {
 		// AbstractDataBufferAllocatingTestCase.LeakDetector will assert the release of the buffers
 	}
 
-	public void foo() {
-		DataBuffer foo = stringBuffer("foo");
-		DataBuffer bar = stringBuffer("bar");
-		DataBuffer baz = stringBuffer("baz");
-		Flux<DataBuffer> flux = Flux.just(foo, bar, baz);
-		ByteArrayOutputStream bos = new ByteArrayOutputStream();
-		DataBufferUtils.write(flux, bos)
-				.subscribe(DataBufferUtils.releaseConsumer());
+	@Test
+	public void SPR16070() throws Exception {
+		ReadableByteChannel channel = mock(ReadableByteChannel.class);
+		when(channel.read(any()))
+				.thenAnswer(putByte(1))
+				.thenAnswer(putByte(2))
+				.thenAnswer(putByte(3))
+				.thenReturn(-1);
 
+		Flux<DataBuffer> read = DataBufferUtils.read(channel, this.bufferFactory, 1);
+
+		StepVerifier.create(
+				read.reduce(DataBuffer::write)
+						.map(this::dataBufferToBytes)
+						.map(this::encodeHexString)
+		)
+				.expectNext("010203")
+				.verifyComplete();
 
 	}
+
+	private Answer<Integer> putByte(int b) {
+		return invocation -> {
+			ByteBuffer buffer = invocation.getArgument(0);
+			buffer.put((byte) b);
+			return 1;
+		};
+	}
+
+	private byte[] dataBufferToBytes(DataBuffer buffer) {
+		try {
+			int byteCount = buffer.readableByteCount();
+			byte[] bytes = new byte[byteCount];
+			buffer.read(bytes);
+			return bytes;
+		}
+		finally {
+			release(buffer);
+		}
+	}
+
+	private String encodeHexString(byte[] data) {
+		StringBuilder builder = new StringBuilder();
+		for (byte b : data) {
+			builder.append((0xF0 & b) >>> 4);
+			builder.append(0x0F & b);
+		}
+		return builder.toString();
+	}
+
+
 
 }

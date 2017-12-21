@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.springframework.http.codec.json;
 
 import java.io.IOException;
@@ -47,7 +48,9 @@ import org.springframework.util.Assert;
 import org.springframework.util.MimeType;
 
 /**
- * Base class providing support methods for Jackson 2.9 encoding.
+ * Base class providing support methods for Jackson 2.9 encoding. For non-streaming use
+ * cases, {@link Flux} elements are collected into a {@link List} before serialization for
+ * performance reason.
  *
  * @author Sebastien Deleuze
  * @author Arjen Poutsma
@@ -57,12 +60,14 @@ public abstract class AbstractJackson2Encoder extends Jackson2CodecSupport imple
 
 	protected final List<MediaType> streamingMediaTypes = new ArrayList<>(1);
 
+
 	/**
 	 * Constructor with a Jackson {@link ObjectMapper} to use.
 	 */
 	protected AbstractJackson2Encoder(ObjectMapper mapper, MimeType... mimeTypes) {
 		super(mapper, mimeTypes);
 	}
+
 
 	/**
 	 * Configure "streaming" media types for which flushing should be performed
@@ -76,12 +81,12 @@ public abstract class AbstractJackson2Encoder extends Jackson2CodecSupport imple
 		this.streamingMediaTypes.addAll(mediaTypes);
 	}
 
+
 	@Override
 	public boolean canEncode(ResolvableType elementType, @Nullable MimeType mimeType) {
 		Class<?> clazz = elementType.resolve(Object.class);
-		return (Object.class == clazz) ||
-				!String.class.isAssignableFrom(elementType.resolve(clazz)) &&
-						objectMapper().canSerialize(clazz) && supportsMimeType(mimeType);
+		return supportsMimeType(mimeType) && (Object.class == clazz ||
+				(!String.class.isAssignableFrom(elementType.resolve(clazz)) && getObjectMapper().canSerialize(clazz)));
 	}
 
 	@Override
@@ -96,7 +101,7 @@ public abstract class AbstractJackson2Encoder extends Jackson2CodecSupport imple
 			return Flux.from(inputStream).map(value ->
 					encodeValue(value, mimeType, bufferFactory, elementType, hints));
 		}
-		else if (this.streamingMediaTypes.stream().anyMatch(streamingMediaType -> streamingMediaType.isCompatibleWith(mimeType))) {
+		else if (this.streamingMediaTypes.stream().anyMatch(mediaType -> mediaType.isCompatibleWith(mimeType))) {
 			return Flux.from(inputStream).map(value -> {
 				DataBuffer buffer = encodeValue(value, mimeType, bufferFactory, elementType, hints);
 				buffer.write(new byte[]{'\n'});
@@ -116,7 +121,7 @@ public abstract class AbstractJackson2Encoder extends Jackson2CodecSupport imple
 		JavaType javaType = getJavaType(elementType.getType(), null);
 		Class<?> jsonView = (hints != null ? (Class<?>) hints.get(Jackson2CodecSupport.JSON_VIEW_HINT) : null);
 		ObjectWriter writer = (jsonView != null ?
-				objectMapper().writerWithView(jsonView) : objectMapper().writer());
+				getObjectMapper().writerWithView(jsonView) : getObjectMapper().writer());
 
 		if (javaType.isContainerType()) {
 			writer = writer.forType(javaType);
@@ -144,6 +149,7 @@ public abstract class AbstractJackson2Encoder extends Jackson2CodecSupport imple
 	
 	protected ObjectWriter customizeWriter(ObjectWriter writer, @Nullable MimeType mimeType,
 			ResolvableType elementType, @Nullable Map<String, Object> hints) {
+
 		return writer;
 	}
 

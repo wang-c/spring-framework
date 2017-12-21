@@ -250,6 +250,7 @@ public class MutablePropertyValues implements PropertyValues, Serializable {
 	}
 
 	@Override
+	@Nullable
 	public PropertyValue getPropertyValue(String propertyName) {
 		for (PropertyValue pv : this.propertyValueList) {
 			if (pv.getName().equals(propertyName)) {
@@ -317,7 +318,7 @@ public class MutablePropertyValues implements PropertyValues, Serializable {
 	 */
 	public void registerProcessedProperty(String propertyName) {
 		if (this.processedProperties == null) {
-			this.processedProperties = new HashSet<>();
+			this.processedProperties = new HashSet<>(4);
 		}
 		this.processedProperties.add(propertyName);
 	}

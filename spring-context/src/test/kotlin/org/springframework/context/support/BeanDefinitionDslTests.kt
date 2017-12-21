@@ -32,13 +32,14 @@ class BeanDefinitionDslTests {
 		val beans = beans { 
 			bean<Foo>()
 			bean<Bar>("bar", scope = Scope.PROTOTYPE)
-			bean { Baz(it.ref<Bar>()) }
-			bean { Baz(it.ref("bar")) }
+			bean { Baz(ref()) }
+			bean { Baz(ref("bar")) }
 		}
 
-		val context = GenericApplicationContext()
-		beans.invoke(context)
-		context.refresh()
+		val context = GenericApplicationContext().apply {
+			beans.initialize(this)
+			refresh()
+		}
 		
 		assertNotNull(context.getBean<Foo>())
 		assertNotNull(context.getBean<Bar>("bar"))
@@ -55,14 +56,15 @@ class BeanDefinitionDslTests {
 				profile("pp") {
 					bean<Foo>()
 				}
-				bean { Baz(it.ref<Bar>()) }
-				bean { Baz(it.ref("bar")) }
+				bean { Baz(ref()) }
+				bean { Baz(ref("bar")) }
 			}
 		}
 
-		val context = GenericApplicationContext()
-		beans.invoke(context)
-		context.refresh()
+		val context = GenericApplicationContext().apply {
+			beans.initialize(this)
+			refresh()
+		}
 
 		assertNotNull(context.getBean<Foo>())
 		assertNotNull(context.getBean<Bar>("bar"))
@@ -78,18 +80,18 @@ class BeanDefinitionDslTests {
 		val beans = beans {
 			bean<Foo>()
 			bean<Bar>("bar")
-			bean { FooFoo(it.env["name"]) }
-			environment({it.activeProfiles.contains("baz")}) {
-				bean { Baz(it.ref()) }
-				bean { Baz(it.ref("bar")) }
+			bean { FooFoo(env["name"]) }
+			environment( { activeProfiles.contains("baz") } ) {
+				bean { Baz(ref()) }
+				bean { Baz(ref("bar")) }
 			}
 		}
 
 		val context = GenericApplicationContext().apply { 
 			environment.propertySources.addFirst(SimpleCommandLinePropertySource("--name=foofoo"))
+			beans.initialize(this)
+			refresh()
 		}
-		beans.invoke(context)
-		context.refresh()
 
 		assertNotNull(context.getBean<Foo>())
 		assertNotNull(context.getBean<Bar>("bar"))

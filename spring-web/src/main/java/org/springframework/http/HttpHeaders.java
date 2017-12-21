@@ -74,6 +74,10 @@ public class HttpHeaders implements MultiValueMap<String, String>, Serializable 
 	private static final long serialVersionUID = -8578554704772377436L;
 
 	/**
+	 * The empty {@code HttpHeaders} instance (immutable).
+	 */
+	public static final HttpHeaders EMPTY = new HttpHeaders(new LinkedHashMap<>(0), true);
+	/**
 	 * The HTTP {@code Accept} header field name.
 	 * @see <a href="http://tools.ietf.org/html/rfc7231#section-5.3.2">Section 5.3.2 of RFC 7231</a>
 	 */
@@ -1387,6 +1391,7 @@ public class HttpHeaders implements MultiValueMap<String, String>, Serializable 
 	 * @return the first header value, or {@code null} if none
 	 */
 	@Override
+	@Nullable
 	public String getFirst(String headerName) {
 		List<String> headerValues = this.headers.get(headerName);
 		return (headerValues != null ? headerValues.get(0) : null);

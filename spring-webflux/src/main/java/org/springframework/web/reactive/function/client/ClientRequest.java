@@ -24,6 +24,7 @@ import java.util.function.Consumer;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.client.reactive.ClientHttpRequest;
@@ -134,6 +135,22 @@ public interface ClientRequest {
 	interface Builder {
 
 		/**
+		 * Set the method of the request.
+		 * @param method the new method
+		 * @return this builder
+		 * @since 5.0.1
+		 */
+		Builder method(HttpMethod method);
+
+		/**
+		 * Set the url of the request.
+		 * @param url the new url
+		 * @return this builder
+		 * @since 5.0.1
+		 */
+		Builder url(URI url);
+
+		/**
 		 * Add the given header value(s) under the given name.
 		 * @param headerName  the header name
 		 * @param headerValues the header value(s)
@@ -188,6 +205,17 @@ public interface ClientRequest {
 		 * @return the built request
 		 */
 		<S, P extends Publisher<S>> Builder body(P publisher, Class<S> elementClass);
+
+		/**
+		 * Set the body of the request to the given {@code Publisher} and return it.
+		 * @param publisher the {@code Publisher} to write to the request
+		 * @param typeReference a type reference describing the elements contained in the publisher
+		 * @param <S> the type of the elements contained in the publisher
+		 * @param <P> the type of the {@code Publisher}
+		 * @return the built request
+		 */
+		<S, P extends Publisher<S>> Builder body(P publisher,
+				ParameterizedTypeReference<S> typeReference);
 
 		/**
 		 * Set the attribute with the given name to the given value.

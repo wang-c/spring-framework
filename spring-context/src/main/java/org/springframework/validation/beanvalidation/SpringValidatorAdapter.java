@@ -25,6 +25,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import javax.validation.ConstraintViolation;
+import javax.validation.ElementKind;
+import javax.validation.Path;
 import javax.validation.ValidationException;
 import javax.validation.executable.ExecutableValidator;
 import javax.validation.metadata.BeanDescriptor;
@@ -57,7 +59,7 @@ import org.springframework.validation.SmartValidator;
  */
 public class SpringValidatorAdapter implements SmartValidator, javax.validation.Validator {
 
-	private static final Set<String> internalAnnotationAttributes = new HashSet<>(3);
+	private static final Set<String> internalAnnotationAttributes = new HashSet<>(4);
 
 	static {
 		internalAnnotationAttributes.add("message");
@@ -176,7 +178,31 @@ public class SpringValidatorAdapter implements SmartValidator, javax.validation.
 	 * @see org.springframework.validation.FieldError#getField()
 	 */
 	protected String determineField(ConstraintViolation<Object> violation) {
-		return violation.getPropertyPath().toString();
+		Path path = violation.getPropertyPath();
+		StringBuilder sb = new StringBuilder();
+		boolean first = true;
+		for (Path.Node node : path) {
+			if (node.isInIterable()) {
+				sb.append('[');
+				Object index = node.getIndex();
+				if (index == null) {
+					index = node.getKey();
+				}
+				if (index != null) {
+					sb.append(index);
+				}
+				sb.append(']');
+			}
+			String name = node.getName();
+			if (name != null && node.getKind() == ElementKind.PROPERTY && !name.startsWith("<")) {
+				if (!first) {
+					sb.append('.');
+				}
+				first = false;
+				sb.append(name);
+			}
+		}
+		return sb.toString();
 	}
 
 	/**
@@ -259,8 +285,8 @@ public class SpringValidatorAdapter implements SmartValidator, javax.validation.
 	@Nullable
 	protected Object getRejectedValue(String field, ConstraintViolation<Object> violation, BindingResult bindingResult) {
 		Object invalidValue = violation.getInvalidValue();
-		if (!"".equals(field) && (invalidValue == violation.getLeafBean() ||
-				(!field.contains("[]") && (field.contains("[") || field.contains("."))))) {
+		if (!"".equals(field) && !field.contains("[]") &&
+				(invalidValue == violation.getLeafBean() || field.contains("[") || field.contains("."))) {
 			// Possibly a bean constraint with property path: retrieve the actual property value.
 			// However, explicitly avoid this for "address[]" style paths that we can't handle.
 			invalidValue = bindingResult.getRawFieldValue(field);
@@ -341,6 +367,7 @@ public class SpringValidatorAdapter implements SmartValidator, javax.validation.
 		}
 
 		@Override
+		@Nullable
 		public Object[] getArguments() {
 			return null;
 		}

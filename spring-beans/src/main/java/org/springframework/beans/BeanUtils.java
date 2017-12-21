@@ -18,7 +18,6 @@ package org.springframework.beans;
 
 import java.beans.PropertyDescriptor;
 import java.beans.PropertyEditor;
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -42,6 +41,7 @@ import kotlin.reflect.jvm.ReflectJvmMapping;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import org.springframework.core.KotlinDetector;
 import org.springframework.core.MethodParameter;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
@@ -70,9 +70,6 @@ public abstract class BeanUtils {
 	private static final Set<Class<?>> unknownEditorTypes =
 			Collections.newSetFromMap(new ConcurrentReferenceHashMap<>(64));
 
-	private static final boolean kotlinPresent =
-			ClassUtils.isPresent("kotlin.Unit", BeanUtils.class.getClassLoader());
-	
 
 	/**
 	 * Convenience method to instantiate a class using its no-arg constructor.
@@ -115,7 +112,7 @@ public abstract class BeanUtils {
 			throw new BeanInstantiationException(clazz, "Specified class is an interface");
 		}
 		try {
-			Constructor<T> ctor = (kotlinPresent && isKotlinClass(clazz) ?
+			Constructor<T> ctor = (KotlinDetector.isKotlinType(clazz) ?
 					KotlinDelegate.findPrimaryConstructor(clazz) : clazz.getDeclaredConstructor());
 			if (ctor == null) {
 				throw new BeanInstantiationException(clazz, "No default constructor found");
@@ -152,8 +149,8 @@ public abstract class BeanUtils {
 	 * non-accessible (that is, non-public) constructor, and supports Kotlin classes
 	 * with optional parameters and default values.
 	 * @param ctor the constructor to instantiate
-	 * @param args the constructor arguments to apply (use null for unspecified parameter
-	 * if needed for Kotlin classes with optional parameters and default values)
+	 * @param args the constructor arguments to apply (use {@code null} for an unspecified
+	 * parameter if needed for Kotlin classes with optional parameters and default values)
 	 * @return the new instance
 	 * @throws BeanInstantiationException if the bean cannot be instantiated
 	 * @see Constructor#newInstance
@@ -162,7 +159,8 @@ public abstract class BeanUtils {
 		Assert.notNull(ctor, "Constructor must not be null");
 		try {
 			ReflectionUtils.makeAccessible(ctor);
-			return (kotlinPresent && isKotlinClass(ctor.getDeclaringClass()) ? KotlinDelegate.instantiateClass(ctor, args) : ctor.newInstance(args));
+			return (KotlinDetector.isKotlinType(ctor.getDeclaringClass()) ?
+					KotlinDelegate.instantiateClass(ctor, args) : ctor.newInstance(args));
 		}
 		catch (InstantiationException ex) {
 			throw new BeanInstantiationException(ctor, "Is it an abstract class?", ex);
@@ -176,6 +174,28 @@ public abstract class BeanUtils {
 		catch (InvocationTargetException ex) {
 			throw new BeanInstantiationException(ctor, "Constructor threw exception", ex.getTargetException());
 		}
+	}
+
+	/**
+	 * Return the primary constructor of the provided class. For Kotlin classes, this
+	 * returns the Java constructor corresponding to the Kotlin primary constructor
+	 * (as defined in the Kotlin specification). Otherwise, in particular for non-Kotlin
+	 * classes, this simply returns {@code null}.
+	 * @param clazz the class to check
+	 * @since 5.0
+	 * @see <a href="http://kotlinlang.org/docs/reference/classes.html#constructors">Kotlin docs</a>
+	 */
+	@SuppressWarnings("unchecked")
+	@Nullable
+	public static <T> Constructor<T> findPrimaryConstructor(Class<T> clazz) {
+		Assert.notNull(clazz, "Class must not be null");
+		if (KotlinDetector.isKotlinType(clazz)) {
+			Constructor<T> kotlinPrimaryConstructor = KotlinDelegate.findPrimaryConstructor(clazz);
+			if (kotlinPrimaryConstructor != null) {
+				return kotlinPrimaryConstructor;
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -316,37 +336,6 @@ public abstract class BeanUtils {
 					numMethodsFoundWithCurrentMinimumArgs + " candidates.");
 		}
 		return targetMethod;
-	}
-
-	/**
-	 * Return the primary constructor of the provided class (single or default constructor
-	 * for Java classes and primary constructor for Kotlin classes), if any.
-	 * @param clazz the {@link Class} of the Kotlin class
-	 * @since 5.0
-	 * @see <a href="http://kotlinlang.org/docs/reference/classes.html#constructors">Kotlin docs</a>
-	 */
-	@SuppressWarnings("unchecked")
-	@Nullable
-	public static <T> Constructor<T> findPrimaryConstructor(Class<T> clazz) {
-		Assert.notNull(clazz, "Class must not be null");
-		Constructor<T> ctor = null;
-		if (kotlinPresent && isKotlinClass(clazz)) {
-			return KotlinDelegate.findPrimaryConstructor(clazz);
-		}
-		else {
-			Constructor<T>[] ctors = (Constructor<T>[]) clazz.getConstructors();
-			if (ctors.length == 1) {
-				return ctors[0];
-			}
-			else {
-				try {
-					return clazz.getDeclaredConstructor();
-				}
-				catch (NoSuchMethodException ex) {
-					return null;
-				}
-			}
-		}
 	}
 
 	/**
@@ -696,18 +685,6 @@ public abstract class BeanUtils {
 		}
 	}
 
-	/**
-	 * Return true if the specified class is a Kotlin one.
-	 */
-	private static boolean isKotlinClass(Class<?> clazz) {
-		for (Annotation annotation : clazz.getDeclaredAnnotations()) {
-			if (annotation.annotationType().getName().equals("kotlin.Metadata")) {
-				return true;
-			}
-		}
-		return false;
-	}
-	
 
 	/**
 	 * Inner class to avoid a hard dependency on Kotlin at runtime.
@@ -717,36 +694,44 @@ public abstract class BeanUtils {
 		/**
 		 * Return the Java constructor corresponding to the Kotlin primary constructor if any.
 		 * @param clazz the {@link Class} of the Kotlin class
-		 * @see <a href="http://kotlinlang.org/docs/reference/classes.html#constructors">http://kotlinlang.org/docs/reference/classes.html#constructors</a>
+		 * @see <a href="http://kotlinlang.org/docs/reference/classes.html#constructors">
+		 *     http://kotlinlang.org/docs/reference/classes.html#constructors</a>
 		 */
 		@Nullable
 		public static <T> Constructor<T> findPrimaryConstructor(Class<T> clazz) {
-			KFunction<T> primaryConstructor = KClasses.getPrimaryConstructor(JvmClassMappingKt.getKotlinClass(clazz));
-			if (primaryConstructor == null) {
+			try {
+				KFunction<T> primaryCtor = KClasses.getPrimaryConstructor(JvmClassMappingKt.getKotlinClass(clazz));
+				if (primaryCtor == null) {
+					return null;
+				}
+				Constructor<T> constructor = ReflectJvmMapping.getJavaConstructor(primaryCtor);
+				Assert.notNull(constructor,
+						() -> "Failed to find Java constructor for Kotlin primary constructor: " + clazz.getName());
+				return constructor;
+			}
+			catch (UnsupportedOperationException ex) {
 				return null;
 			}
-			Constructor<T> constructor = ReflectJvmMapping.getJavaConstructor(primaryConstructor);
-			Assert.notNull(constructor, "Can't get the Java constructor corresponding to the Kotlin primary constructor of " + clazz.getName());
-			return constructor;
 		}
 
 		/**
 		 * Instantiate a Kotlin class using the provided constructor.
 		 * @param ctor the constructor of the Kotlin class to instantiate
 		 * @param args the constructor arguments to apply (use null for unspecified parameter if needed)
-		 * @throws BeanInstantiationException if no primary constructor can be found
 		 */
-		public static <T> T instantiateClass(Constructor<T> ctor, Object... args) {
+		public static <T> T instantiateClass(Constructor<T> ctor, Object... args)
+				throws IllegalAccessException, InvocationTargetException, InstantiationException {
+
 			KFunction<T> kotlinConstructor = ReflectJvmMapping.getKotlinFunction(ctor);
 			if (kotlinConstructor == null) {
-				throw new BeanInstantiationException(ctor.getDeclaringClass(), "No corresponding Kotlin constructor found");
+				return ctor.newInstance(args);
 			}
 			List<KParameter> parameters = kotlinConstructor.getParameters();
 			Map<KParameter, Object> argParameters = new HashMap<>(parameters.size());
-			Assert.isTrue(args.length <= parameters.size(), 
-					"The number of provided arguments should be less of equals than the number of constructor parameters");
+			Assert.isTrue(args.length <= parameters.size(),
+					"Number of provided arguments should be less of equals than number of constructor parameters");
 			for (int i = 0 ; i < args.length ; i++) {
-				if (!(parameters.get(i).isOptional() && (args[i] == null))) {
+				if (!(parameters.get(i).isOptional() && args[i] == null)) {
 					argParameters.put(parameters.get(i), args[i]);
 				}
 			}

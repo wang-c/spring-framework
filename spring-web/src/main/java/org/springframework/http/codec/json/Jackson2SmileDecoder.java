@@ -16,7 +16,7 @@
 
 package org.springframework.http.codec.json;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,7 +28,8 @@ import org.springframework.util.Assert;
 import org.springframework.util.MimeType;
 
 /**
- * Decode a byte stream into Smile and convert to Object's with Jackson 2.9.
+ * Decode a byte stream into Smile and convert to Object's with Jackson 2.9,
+ * leveraging non-blocking parsing.
  *
  * @author Sebastien Deleuze
  * @author Rossen Stoyanchev
@@ -51,6 +52,7 @@ public class Jackson2SmileDecoder extends AbstractJackson2Decoder {
 
 	@Override
 	public List<MimeType> getDecodableMimeTypes() {
-		return Arrays.asList(SMILE_MIME_TYPE);
+		return Collections.singletonList(SMILE_MIME_TYPE);
 	}
+
 }

@@ -260,7 +260,6 @@ public class SimpleBrokerMessageHandler extends AbstractBrokerMessageHandler {
 		SimpMessageType messageType = SimpMessageHeaderAccessor.getMessageType(headers);
 		String destination = SimpMessageHeaderAccessor.getDestination(headers);
 		String sessionId = SimpMessageHeaderAccessor.getSessionId(headers);
-		Principal user = SimpMessageHeaderAccessor.getUser(headers);
 
 		updateSessionReadTime(sessionId);
 
@@ -277,6 +276,7 @@ public class SimpleBrokerMessageHandler extends AbstractBrokerMessageHandler {
 			if (sessionId != null) {
 				long[] clientHeartbeat = SimpMessageHeaderAccessor.getHeartbeat(headers);
 				long[] serverHeartbeat = getHeartbeatValue();
+				Principal user = SimpMessageHeaderAccessor.getUser(headers);
 				this.sessions.put(sessionId, new SessionInfo(sessionId, user, clientHeartbeat, serverHeartbeat));
 				SimpMessageHeaderAccessor connectAck = SimpMessageHeaderAccessor.create(SimpMessageType.CONNECT_ACK);
 				initHeaders(connectAck);
@@ -293,6 +293,7 @@ public class SimpleBrokerMessageHandler extends AbstractBrokerMessageHandler {
 		else if (SimpMessageType.DISCONNECT.equals(messageType)) {
 			logMessage(message);
 			if (sessionId != null) {
+				Principal user = SimpMessageHeaderAccessor.getUser(headers);
 				handleDisconnect(sessionId, user, message);
 			}
 		}
@@ -364,7 +365,9 @@ public class SimpleBrokerMessageHandler extends AbstractBrokerMessageHandler {
 					getClientOutboundChannel().send(reply);
 				}
 				catch (Throwable ex) {
-					logger.error("Failed to send " + message, ex);
+					if (logger.isErrorEnabled()) {
+						logger.error("Failed to send " + message, ex);
+					}
 				}
 				finally {
 					SessionInfo info = this.sessions.get(subscriptionEntry.getKey());

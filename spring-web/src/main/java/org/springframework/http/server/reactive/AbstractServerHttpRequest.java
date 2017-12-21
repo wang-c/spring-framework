@@ -16,13 +16,18 @@
 
 package org.springframework.http.server.reactive;
 
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
+import java.net.URLDecoder;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.server.RequestPath;
 import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.LinkedMultiValueMap;
@@ -36,6 +41,8 @@ import org.springframework.util.StringUtils;
  * @since 5.0
  */
 public abstract class AbstractServerHttpRequest implements ServerHttpRequest {
+
+	private static final Log logger = LogFactory.getLog(ServerHttpRequest.class);
 
 	private static final Pattern QUERY_PATTERN = Pattern.compile("([^&=]+)(=?)([^&]+)?");
 
@@ -51,6 +58,9 @@ public abstract class AbstractServerHttpRequest implements ServerHttpRequest {
 
 	@Nullable
 	private MultiValueMap<String, HttpCookie> cookies;
+
+	@Nullable
+	private SslInfo sslInfo;
 
 
 	/**
@@ -112,8 +122,18 @@ public abstract class AbstractServerHttpRequest implements ServerHttpRequest {
 		return queryParams;
 	}
 
+	@SuppressWarnings("deprecation")
 	private String decodeQueryParam(String value) {
-		return StringUtils.uriDecode(value, StandardCharsets.UTF_8);
+		try {
+			return URLDecoder.decode(value, "UTF-8");
+		}
+		catch (UnsupportedEncodingException ex) {
+			if (logger.isWarnEnabled()) {
+				logger.warn("Could not decode query param [" + value + "] as 'UTF-8'. " +
+						"Falling back on default encoding; exception message: " + ex.getMessage());
+			}
+			return URLDecoder.decode(value);
+		}
 	}
 
 	@Override
@@ -134,5 +154,29 @@ public abstract class AbstractServerHttpRequest implements ServerHttpRequest {
 	 * thread-safe access to cookie data.
 	 */
 	protected abstract MultiValueMap<String, HttpCookie> initCookies();
+
+	@Nullable
+	@Override
+	public SslInfo getSslInfo() {
+		if (this.sslInfo == null) {
+			this.sslInfo = initSslInfo();
+		}
+		return this.sslInfo;
+	}
+
+	/**
+	 * Obtain SSL session information from the underlying "native" request.
+	 * @return the session information, or {@code null} if none available
+	 * @since 5.0.2
+	 */
+	@Nullable
+	protected abstract SslInfo initSslInfo();
+
+	/**
+	 * Return the underlying server response.
+	 * <p><strong>Note:</strong> This is exposed mainly for internal framework
+	 * use such as WebSocket upgrades in the spring-webflux module.
+	 */
+	public abstract <T> T getNativeRequest();
 
 }

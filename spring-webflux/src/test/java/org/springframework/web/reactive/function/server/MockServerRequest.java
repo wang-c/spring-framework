@@ -33,13 +33,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpRange;
+import org.springframework.http.HttpRequest;
 import org.springframework.http.MediaType;
-import org.springframework.http.server.reactive.PathContainer;
-import org.springframework.http.server.reactive.RequestPath;
+import org.springframework.http.server.PathContainer;
+import org.springframework.http.server.RequestPath;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
@@ -48,6 +50,8 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyExtractor;
 import org.springframework.web.server.WebSession;
+import org.springframework.web.util.UriBuilder;
+import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * Mock implementation of {@link ServerRequest}.
@@ -108,8 +112,18 @@ public class MockServerRequest implements ServerRequest {
 	}
 
 	@Override
+	public String methodName() {
+		return this.method.name();
+	}
+
+	@Override
 	public URI uri() {
 		return this.uri;
+	}
+
+	@Override
+	public UriBuilder uriBuilder() {
+		return UriComponentsBuilder.fromHttpRequest(new ServerRequestAdapter());
 	}
 
 	@Override
@@ -150,7 +164,21 @@ public class MockServerRequest implements ServerRequest {
 
 	@Override
 	@SuppressWarnings("unchecked")
+	public <S> Mono<S> bodyToMono(ParameterizedTypeReference<S> typeReference) {
+		Assert.state(this.body != null, "No body");
+		return (Mono<S>) this.body;
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
 	public <S> Flux<S> bodyToFlux(Class<? extends S> elementClass) {
+		Assert.state(this.body != null, "No body");
+		return (Flux<S>) this.body;
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	public <S> Flux<S> bodyToFlux(ParameterizedTypeReference<S> typeReference) {
 		Assert.state(this.body != null, "No body");
 		return (Flux<S>) this.body;
 	}
@@ -445,5 +473,24 @@ public class MockServerRequest implements ServerRequest {
 		}
 
 	}
+
+	private final class ServerRequestAdapter implements HttpRequest {
+
+		@Override
+		public String getMethodValue() {
+			return methodName();
+		}
+
+		@Override
+		public URI getURI() {
+			return MockServerRequest.this.uri;
+		}
+
+		@Override
+		public HttpHeaders getHeaders() {
+			return MockServerRequest.this.headers.headers;
+		}
+	}
+
 
 }
