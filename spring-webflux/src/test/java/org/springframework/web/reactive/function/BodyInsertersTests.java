@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2017 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +54,7 @@ import org.springframework.http.codec.ResourceHttpMessageWriter;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.http.codec.ServerSentEventHttpMessageWriter;
 import org.springframework.http.codec.json.Jackson2JsonEncoder;
+import org.springframework.http.codec.multipart.MultipartHttpMessageWriter;
 import org.springframework.http.codec.xml.Jaxb2XmlEncoder;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -63,6 +65,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.*;
 import static org.springframework.http.codec.json.Jackson2CodecSupport.JSON_VIEW_HINT;
 
@@ -89,6 +92,7 @@ public class BodyInsertersTests {
 		messageWriters.add(new ServerSentEventHttpMessageWriter(jsonEncoder));
 		messageWriters.add(new FormHttpMessageWriter());
 		messageWriters.add(new EncoderHttpMessageWriter<>(CharSequenceEncoder.allMimeTypes()));
+		messageWriters.add(new MultipartHttpMessageWriter(messageWriters));
 
 		this.context = new BodyInserter.Context() {
 			@Override
@@ -300,6 +304,51 @@ public class BodyInsertersTests {
 				.expectComplete()
 				.verify();
 
+	}
+
+	@Test
+	public void fromMultipartData() throws Exception {
+		MultiValueMap<String, Object> map = new LinkedMultiValueMap<>();
+		map.set("name 3", "value 3");
+
+		BodyInserters.FormInserter<Object> inserter =
+				BodyInserters.fromMultipartData("name 1", "value 1")
+						.withPublisher("name 2", Flux.just("foo", "bar", "baz"), String.class)
+						.with(map);
+
+		MockClientHttpRequest request = new MockClientHttpRequest(HttpMethod.GET, URI.create("http://example.com"));
+		Mono<Void> result = inserter.insert(request, this.context);
+		StepVerifier.create(result).expectComplete().verify();
+
+	}
+
+	@Test // SPR-16350
+	public void fromMultipartDataWithMultipleValues() {
+		MultiValueMap<String, Object> map = new LinkedMultiValueMap<>();
+		map.put("name", Arrays.asList("value1", "value2"));
+		BodyInserters.FormInserter<Object> inserter = BodyInserters.fromMultipartData(map);
+
+		MockClientHttpRequest request = new MockClientHttpRequest(HttpMethod.GET, URI.create("http://example.com"));
+		Mono<Void> result = inserter.insert(request, this.context);
+		StepVerifier.create(result).expectComplete().verify();
+
+		StepVerifier.create(DataBufferUtils.join(request.getBody()))
+				.consumeNextWith(dataBuffer -> {
+					byte[] resultBytes = new byte[dataBuffer.readableByteCount()];
+					dataBuffer.read(resultBytes);
+					DataBufferUtils.release(dataBuffer);
+					String content = new String(resultBytes, StandardCharsets.UTF_8);
+					assertThat(content, containsString("Content-Disposition: form-data; name=\"name\"\r\n" +
+							"Content-Type: text/plain;charset=UTF-8\r\n" +
+							"\r\n" +
+							"value1"));
+					assertThat(content, containsString("Content-Disposition: form-data; name=\"name\"\r\n" +
+							"Content-Type: text/plain;charset=UTF-8\r\n" +
+							"\r\n" +
+							"value2"));
+				})
+				.expectComplete()
+				.verify();
 	}
 
 	@Test

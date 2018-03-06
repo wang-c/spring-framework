@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2017 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@
 package org.springframework.util;
 
 import java.beans.Introspector;
+import java.io.Externalizable;
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -75,6 +77,13 @@ public abstract class ClassUtils {
 
 
 	/**
+	 * Common Java language interfaces which are supposed to be ignored
+	 * when searching for 'primary' user-level interfaces.
+	 */
+	private static final Set<Class<?>> javaLanguageInterfaces = new HashSet<>(
+			Arrays.asList(Serializable.class, Externalizable.class, Cloneable.class, Comparable.class));
+
+	/**
 	 * Map with primitive wrapper type as key and corresponding primitive
 	 * type as value, for example: Integer.class -> int.class.
 	 */
@@ -116,8 +125,8 @@ public abstract class ClassUtils {
 
 		Set<Class<?>> primitiveTypes = new HashSet<>(32);
 		primitiveTypes.addAll(primitiveWrapperTypeMap.values());
-		primitiveTypes.addAll(Arrays.asList(boolean[].class, byte[].class, char[].class,
-				double[].class, float[].class, int[].class, long[].class, short[].class));
+		Collections.addAll(primitiveTypes, boolean[].class, byte[].class, char[].class,
+				double[].class, float[].class, int[].class, long[].class, short[].class);
 		primitiveTypes.add(void.class);
 		for (Class<?> primitiveType : primitiveTypes) {
 			primitiveTypeNameMap.put(primitiveType.getName(), primitiveType);
@@ -289,11 +298,10 @@ public abstract class ClassUtils {
 			return forName(className, classLoader);
 		}
 		catch (ClassNotFoundException ex) {
-			throw new IllegalArgumentException("Cannot find class [" + className + "]", ex);
+			throw new IllegalArgumentException("Could not find class [" + className + "]", ex);
 		}
-		catch (LinkageError ex) {
-			throw new IllegalArgumentException(
-					"Error loading class [" + className + "]: problem with class file or dependent class.", ex);
+		catch (LinkageError err) {
+			throw new IllegalArgumentException("Unresolvable class definition for class [" + className + "]", err);
 		}
 	}
 
@@ -1050,18 +1058,15 @@ public abstract class ClassUtils {
 	}
 
 	/**
-	 * Copy the given Collection into a Class array.
-	 * The Collection must contain Class elements only.
-	 * @param collection the Collection to copy
-	 * @return the Class array ({@code null} if the passed-in
-	 * Collection was {@code null})
+	 * Copy the given {@code Collection} into a {@code Class} array.
+	 * <p>The {@code Collection} must contain {@code Class} elements only.
+	 * @param collection the {@code Collection} to copy
+	 * @return the {@code Class} array
+	 * @since 3.1
+	 * @see StringUtils#toStringArray
 	 */
-	@Nullable
-	public static Class<?>[] toClassArray(@Nullable Collection<Class<?>> collection) {
-		if (collection == null) {
-			return null;
-		}
-		return collection.toArray(new Class<?>[collection.size()]);
+	public static Class<?>[] toClassArray(Collection<Class<?>> collection) {
+		return collection.toArray(new Class<?>[0]);
 	}
 
 	/**
@@ -1096,8 +1101,7 @@ public abstract class ClassUtils {
 	 * @return all interfaces that the given object implements as an array
 	 */
 	public static Class<?>[] getAllInterfacesForClass(Class<?> clazz, @Nullable ClassLoader classLoader) {
-		Set<Class<?>> ifcs = getAllInterfacesForClassAsSet(clazz, classLoader);
-		return ifcs.toArray(new Class<?>[ifcs.size()]);
+		return toClassArray(getAllInterfacesForClassAsSet(clazz, classLoader));
 	}
 
 	/**
@@ -1216,6 +1220,19 @@ public abstract class ClassUtils {
 			// No interface class found...
 			return false;
 		}
+	}
+
+	/**
+	 * Determine whether the given interface is a common Java language interface:
+	 * {@link Serializable}, {@link Externalizable}, {@link Cloneable}, {@link Comparable}
+	 * - all of which can be ignored when looking for 'primary' user-level interfaces.
+	 * Common characteristics: no service-level operations, no bean property methods,
+	 * no default methods.
+	 * @param ifc the interface to check
+	 * @since 5.0.3
+	 */
+	public static boolean isJavaLanguageInterface(Class<?> ifc) {
+		return javaLanguageInterfaces.contains(ifc);
 	}
 
 	/**

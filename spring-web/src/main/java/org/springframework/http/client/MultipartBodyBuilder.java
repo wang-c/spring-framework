@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2017 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,12 @@ package org.springframework.http.client;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
+import org.reactivestreams.Publisher;
+
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.core.ResolvableType;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -96,6 +101,11 @@ public final class MultipartBodyBuilder {
 		Assert.hasLength(name, "'name' must not be empty");
 		Assert.notNull(part, "'part' must not be null");
 
+		if (part instanceof Publisher) {
+			throw new IllegalArgumentException("Use publisher(String, Publisher, Class) or " +
+				"publisher(String, Publisher, ParameterizedTypeReference) for adding Publisher parts");
+		}
+
 		Object partBody;
 		HttpHeaders partHeaders = new HttpHeaders();
 
@@ -116,6 +126,54 @@ public final class MultipartBodyBuilder {
 		return builder;
 	}
 
+	/**
+	 * Adds a {@link Publisher} part to this builder, allowing for further header customization with
+	 * the returned {@link PartBuilder}.
+	 * @param name the name of the part to add (may not be empty)
+	 * @param publisher the contents of the part to add
+	 * @param elementClass the class of elements contained in the publisher
+	 * @return a builder that allows for further header customization
+	 */
+	public <T, P extends Publisher<T>> PartBuilder asyncPart(String name, P publisher,
+			Class<T> elementClass) {
+
+		Assert.notNull(elementClass, "'elementClass' must not be null");
+		ResolvableType elementType = ResolvableType.forClass(elementClass);
+		Assert.hasLength(name, "'name' must not be empty");
+		Assert.notNull(publisher, "'publisher' must not be null");
+		Assert.notNull(elementType, "'elementType' must not be null");
+
+		HttpHeaders partHeaders = new HttpHeaders();
+		PublisherPartBuilder<T, P> builder =
+				new PublisherPartBuilder<>(publisher, elementClass, partHeaders);
+		this.parts.add(name, builder);
+		return builder;
+
+	}
+
+	/**
+	 * Adds a {@link Publisher} part to this builder, allowing for further header customization with
+	 * the returned {@link PartBuilder}.
+	 * @param name the name of the part to add (may not be empty)
+	 * @param publisher the contents of the part to add
+	 * @param typeReference the type of elements contained in the publisher
+	 * @return a builder that allows for further header customization
+	 */
+	public <T, P extends Publisher<T>> PartBuilder asyncPart(String name, P publisher,
+			ParameterizedTypeReference<T> typeReference) {
+
+		Assert.notNull(typeReference, "'typeReference' must not be null");
+		ResolvableType elementType1 = ResolvableType.forType(typeReference);
+		Assert.hasLength(name, "'name' must not be empty");
+		Assert.notNull(publisher, "'publisher' must not be null");
+		Assert.notNull(elementType1, "'typeReference' must not be null");
+
+		HttpHeaders partHeaders = new HttpHeaders();
+		PublisherPartBuilder<T, P> builder =
+				new PublisherPartBuilder<>(publisher, typeReference, partHeaders);
+		this.parts.add(name, builder);
+		return builder;
+	}
 
 	/**
 	 * Builder interface that allows for customization of part headers.
@@ -130,16 +188,22 @@ public final class MultipartBodyBuilder {
 		 * @see HttpHeaders#add(String, String)
 		 */
 		PartBuilder header(String headerName, String... headerValues);
+
+		/**
+		 * Manipulate the part's headers with the given consumer.
+		 * @param headersConsumer a function that consumes the {@code HttpHeaders}
+		 * @return this builder
+		 */
+		PartBuilder headers(Consumer<HttpHeaders> headersConsumer);
 	}
 
 
 	private static class DefaultPartBuilder implements PartBuilder {
 
 		@Nullable
-		private final Object body;
+		protected final Object body;
 
-		private final HttpHeaders headers;
-
+		protected final HttpHeaders headers;
 
 		public DefaultPartBuilder(@Nullable Object body, HttpHeaders headers) {
 			this.body = body;
@@ -152,8 +216,69 @@ public final class MultipartBodyBuilder {
 			return this;
 		}
 
+		@Override
+		public PartBuilder headers(Consumer<HttpHeaders> headersConsumer) {
+			Assert.notNull(headersConsumer, "'headersConsumer' must not be null");
+			headersConsumer.accept(this.headers);
+			return this;
+		}
+
 		public HttpEntity<?> build() {
 			return new HttpEntity<>(this.body, this.headers);
+		}
+	}
+
+	private static class PublisherPartBuilder<S, P extends Publisher<S>>
+			extends DefaultPartBuilder {
+
+		private final ResolvableType resolvableType;
+
+		public PublisherPartBuilder(P body, Class<S> elementClass, HttpHeaders headers) {
+			super(body, headers);
+			this.resolvableType = ResolvableType.forClass(elementClass);
+		}
+
+		public PublisherPartBuilder(P body, ParameterizedTypeReference<S> typeReference,
+				HttpHeaders headers) {
+
+			super(body, headers);
+			this.resolvableType = ResolvableType.forType(typeReference);
+		}
+
+		@Override
+		@SuppressWarnings("unchecked")
+		public HttpEntity<?> build() {
+			P publisher = (P) this.body;
+			Assert.state(publisher != null, "'publisher' must not be null");
+			return new PublisherEntity<>(publisher, this.resolvableType, this.headers);
+		}
+	}
+
+
+	/**
+	 * Specific subtype of {@link HttpEntity} for containing {@link Publisher}s as body.
+	 * Exposes the type contained in the publisher through {@link #getResolvableType()}.
+	 * @param <T> The type contained in the publisher
+	 * @param <P> The publisher
+	 */
+	public static final class PublisherEntity<T, P extends Publisher<T>> extends HttpEntity<P> {
+
+		private final ResolvableType resolvableType;
+
+
+		PublisherEntity(P publisher, ResolvableType resolvableType,
+				@Nullable MultiValueMap<String, String> headers) {
+			super(publisher, headers);
+			Assert.notNull(publisher, "'publisher' must not be null");
+			Assert.notNull(resolvableType, "'resolvableType' must not be null");
+			this.resolvableType = resolvableType;
+		}
+
+		/**
+		 * Return the resolvable type for this entry.
+		 */
+		public ResolvableType getResolvableType() {
+			return this.resolvableType;
 		}
 	}
 

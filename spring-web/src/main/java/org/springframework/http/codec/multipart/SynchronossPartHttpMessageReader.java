@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2017 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,12 @@ package org.springframework.http.codec.multipart;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.List;
@@ -268,8 +268,8 @@ public class SynchronossPartHttpMessageReader implements HttpMessageReader<Part>
 
 		@Override
 		public Flux<DataBuffer> content() {
-			InputStream inputStream = this.storage.getInputStream();
-			return DataBufferUtils.read(inputStream, getBufferFactory(), 4096);
+			return DataBufferUtils.readInputStream(this.storage::getInputStream, getBufferFactory(),
+					4096);
 		}
 
 		protected StreamStorage getStorage() {
@@ -279,6 +279,9 @@ public class SynchronossPartHttpMessageReader implements HttpMessageReader<Part>
 
 
 	private static class SynchronossFilePart extends DefaultSynchronossPart implements FilePart {
+
+		private static final OpenOption[] FILE_CHANNEL_OPTIONS = {
+				StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE };
 
 		private final String filename;
 
@@ -300,7 +303,7 @@ public class SynchronossPartHttpMessageReader implements HttpMessageReader<Part>
 			FileChannel output = null;
 			try {
 				input = Channels.newChannel(getStorage().getInputStream());
-				output = FileChannel.open(destination.toPath(), StandardOpenOption.WRITE);
+				output = FileChannel.open(destination.toPath(), FILE_CHANNEL_OPTIONS);
 				long size = (input instanceof FileChannel ? ((FileChannel) input).size() : Long.MAX_VALUE);
 				long totalWritten = 0;
 				while (totalWritten < size) {

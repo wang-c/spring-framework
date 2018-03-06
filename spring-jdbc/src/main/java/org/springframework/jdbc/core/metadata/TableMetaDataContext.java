@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2017 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,35 +45,35 @@ import org.springframework.util.Assert;
  */
 public class TableMetaDataContext {
 
-	/** Logger available to subclasses */
+	// Logger available to subclasses
 	protected final Log logger = LogFactory.getLog(getClass());
 
-	/** Name of table for this context */
+	// Name of table for this context
 	@Nullable
 	private String tableName;
 
-	/** Name of catalog for this context */
+	// Name of catalog for this context
 	@Nullable
 	private String catalogName;
 
-	/** Name of schema for this context */
+	// Name of schema for this context
 	@Nullable
 	private String schemaName;
 
-	/** List of columns objects to be used in this context */
+	// List of columns objects to be used in this context
 	private List<String> tableColumns = new ArrayList<>();
 
-	/** should we access insert parameter meta data info or not */
+	// Should we access insert parameter meta data info or not
 	private boolean accessTableColumnMetaData = true;
 
-	/** should we override default for including synonyms for meta data lookups */
+	// Should we override default for including synonyms for meta data lookups
 	private boolean overrideIncludeSynonymsDefault = false;
 
-	/** the provider of table meta data */
+	// The provider of table meta data
 	@Nullable
 	private TableMetaDataProvider metaDataProvider;
 
-	/** are we using generated key columns */
+	// Are we using generated key columns
 	private boolean generatedKeyColumnsUsed = false;
 
 
@@ -184,7 +184,7 @@ public class TableMetaDataContext {
 		if (generatedKeyNames.length > 0) {
 			this.generatedKeyColumnsUsed = true;
 		}
-		if (declaredColumns.size() > 0) {
+		if (!declaredColumns.isEmpty()) {
 			return new ArrayList<>(declaredColumns);
 		}
 		Set<String> keys = new LinkedHashSet<>(generatedKeyNames.length);
@@ -206,8 +206,8 @@ public class TableMetaDataContext {
 	 */
 	public List<Object> matchInParameterValuesWithInsertColumns(SqlParameterSource parameterSource) {
 		List<Object> values = new ArrayList<>();
-		// for parameter source lookups we need to provide caseinsensitive lookup support since the
-		// database metadata is not necessarily providing case sensitive column names
+		// For parameter source lookups we need to provide case-insensitive lookup support since the
+		// database metadata is not necessarily providing case-sensitive column names
 		Map<String, String> caseInsensitiveParameterNames =
 				SqlParameterSourceUtils.extractCaseInsensitiveParameterNames(parameterSource);
 		for (String column : this.tableColumns) {
@@ -226,9 +226,8 @@ public class TableMetaDataContext {
 					}
 					else {
 						if (caseInsensitiveParameterNames.containsKey(lowerCaseName)) {
-							values.add(
-									SqlParameterSourceUtils.getTypedValue(parameterSource,
-											caseInsensitiveParameterNames.get(lowerCaseName)));
+							values.add(SqlParameterSourceUtils.getTypedValue(
+									parameterSource, caseInsensitiveParameterNames.get(lowerCaseName)));
 						}
 						else {
 							values.add(null);
